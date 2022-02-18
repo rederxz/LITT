@@ -264,7 +264,7 @@ class CRNNcell(nn.Module):
         """
         in_to_hid = self.i2h(input)
         ih_to_ih = self.ih2ih(hidden_iteration)
-        hid_to_hid = self.h2h_0(hidden)
+        hid_to_hid = self.h2h(hidden)
         hidden_out = self.relu(in_to_hid + hid_to_hid + ih_to_ih)
 
         return hidden_out
@@ -375,7 +375,7 @@ class CRNN_MRI_UniDir(nn.Module):
 
             # shortcut connection
             net['t%d_out' % i] = x + net['t%d_x4' % i]\
-                .view(n_seq, n_batch, self.nf, width, height)
+                .view(n_seq, n_batch, n_ch, width, height)
 
             net['t%d_out' % i] = net['t%d_out' % i].permute(1, 2, 3, 4, 0)  # (batch_size, n_ch, width, height, n_seq)
             # net['t%d_out' % i].contiguous()  # TODO
