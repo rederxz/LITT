@@ -62,7 +62,7 @@ if __name__ == '__main__':
     # flip_t = False
 
     # create work directory if needed
-    if os.path.exists(args.work_dir):
+    if not os.path.exists(args.work_dir):
         os.mkdir(args.work_dir)
 
     # dataset, sample shape [n_samples, x, y, t]
