@@ -244,10 +244,10 @@ class LITT(torch.utils.data.dataset.Dataset):
         img_u, k_u = cs.undersample(img_gnd, mask)
 
         # complex64 -> float32, [x, y, time(, echo)] -> [x, y, time(, echo), 2]
-        img_gnd_tensor = torch.view_as_real(torch.from_numpy(img_gnd))  # with shape
-        img_u_tensor = torch.view_as_real(torch.from_numpy(img_u))
-        k_u_tensor = torch.view_as_real(torch.from_numpy(k_u))
-        mask_tensor = torch.view_as_real(torch.from_numpy(mask*(1+1j)))
+        img_gnd_tensor = torch.view_as_real(torch.from_numpy(img_gnd)).float()
+        img_u_tensor = torch.view_as_real(torch.from_numpy(img_u)).float()
+        k_u_tensor = torch.view_as_real(torch.from_numpy(k_u)).float()
+        mask_tensor = torch.view_as_real(torch.from_numpy(mask*(1+1j))).float()
 
         # [x, y, time(, echo), 2] -> [(echo,) 2, x, y, time]
         perm = (3, 0, 1, 2) if self.single_echo else (3, 4, 0, 1, 2)
