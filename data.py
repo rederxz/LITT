@@ -262,6 +262,7 @@ def get_LITT_dataset(data_root, split, **kwargs):
     mat_file_path = os.listdir(data_root)
     mat_file_path = mat_file_path[:8] if split == 'train' \
         else (mat_file_path[8:9] if split == 'val' else mat_file_path[9:10])
+    mat_file_path = [os.path.join(data_root, path) for path in mat_file_path]
     dataset = LITT(mat_file_path, **kwargs)
     return dataset
 
