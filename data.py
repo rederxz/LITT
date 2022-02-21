@@ -205,10 +205,11 @@ class LITT(torch.utils.data.dataset.Dataset):
         :param acc: accelerating rate
         :param sample_n: preserve how many center lines (sample_n // 2 each side)
         :param transform: transform applied to each sample
-        :return: if single_echo, each sample has shape [time, x, y]; else [echos, time, x, y]
+        :return: if single_echo, each sample has shape [time, 2, x, y]; else [echos, time, 2, x, y]
         'time' size is set to nt_network if specified
         """
         super(LITT, self).__init__()
+        self.single_echo = single_echo
         self.acc = acc
         self.sample_n = sample_n
         self.transform = transform
@@ -219,7 +220,7 @@ class LITT(torch.utils.data.dataset.Dataset):
             mFFE_img_imag = mat_data['mFFE_img_imag']
             mFFE_img_real = mat_data['mFFE_img_real']
             mFFE_img_complex = mFFE_img_real + 1j * mFFE_img_imag  # [x, y, time, echo]
-            mFFE_img_complex = mFFE_img_complex.transpose((3, 2, 0, 1))  # [echo, time, x, y]
+            mFFE_img_complex = mFFE_img_complex.transpose((3, 0, 1, 2))  # [echo, x, y, time]
 
             if single_echo:  # [time, x, y]
                 mFFE_img_complex = mFFE_img_complex[0]  # TODO: if single echo, use the 1st one
@@ -227,27 +228,34 @@ class LITT(torch.utils.data.dataset.Dataset):
             if nt_network is None:
                 self.data.append(mFFE_img_complex)
             else:  # slice the data along time dim according to nt_network
-                total_t = mFFE_img_complex.shape[-3]
+                total_t = mFFE_img_complex.shape[-1]
                 complete_slice = total_t // nt_network
                 for i in range(complete_slice):
-                    self.data.append(mFFE_img_complex[..., i * nt_network:(i + 1) * nt_network, :, :])
+                    self.data.append(mFFE_img_complex[..., i * nt_network:(i + 1) * nt_network])
                 if total_t % nt_network > 0:
-                    self.data.append(mFFE_img_complex[..., -nt_network:, :, :])
+                    self.data.append(mFFE_img_complex[..., -nt_network:])
 
     def __getitem__(self, idx):
         img_gnd = self.data[idx]
 
-        if self.transform:
+        if self.transform is not None:
             img_gnd = self.transform(img_gnd)
 
         mask = cs.cartesian_mask(img_gnd.shape, acc=self.acc, sample_n=self.sample_n)
         img_u, k_u = cs.undersample(img_gnd, mask)
 
-        # convert to float32 tensor (original format is float64)
-        img_gnd_tensor = torch.from_numpy(to_tensor_format(img_gnd)).float()
-        img_u_tensor = torch.from_numpy(to_tensor_format(img_u)).float()
-        k_u_tensor = torch.from_numpy(to_tensor_format(k_u)).float()
-        mask_tensor = torch.from_numpy(to_tensor_format(mask, mask=True)).float()
+        # complex64 -> float32, [(echo,) x, y, time] -> [(echo,) x, y, time, 2]
+        img_gnd_tensor = torch.view_as_real(torch.from_numpy(img_gnd))  # with shape
+        img_u_tensor = torch.view_as_real(torch.from_numpy(img_u))
+        k_u_tensor = torch.view_as_real(torch.from_numpy(k_u))
+        mask_tensor = torch.view_as_real(torch.from_numpy(mask))
+
+        # [(echo,) x, y, time, 2] -> [(echo,) 2, x, y, time]
+        perm = (3, 0, 1, 2) if self.single_echo else (0, 4, 1, 2, 3)
+        img_gnd_tensor = img_gnd_tensor.permute(perm)
+        img_u_tensor = img_u_tensor.permute(perm)
+        k_u_tensor = k_u_tensor.permute(perm)
+        mask_tensor = mask_tensor.permute(perm)
 
         return {'img_gnd': img_gnd_tensor,
                 'img_u': img_u_tensor,
