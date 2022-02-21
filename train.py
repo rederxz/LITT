@@ -42,14 +42,15 @@ def prep_input(im, **kwargs):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--num_epoch', type=int, nargs=1, default=['200'], help='number of epochs')
-    parser.add_argument('--batch_size', type=int, nargs=1, default=['1'], help='batch size')
-    parser.add_argument('--num_batch', type=int, nargs=1, default=['10'], help='number of batches in each epoch')
-    parser.add_argument('--lr', type=float, nargs=1, default=['0.0001'], help='initial learning rate')
-    parser.add_argument('--acceleration_factor', type=float, nargs=1,
-                        default=['6.0'], help='Acceleration factor for k-space sampling')
-    parser.add_argument('--sampled_lines', type=int, nargs=1,
-                        default=['15'], help='Number of sampled lines at k-space center')
+    parser.add_argument('--data_path', type=str, default='./LITT_data/', help='the directory of data')
+    parser.add_argument('--num_epoch', type=int, default='200', help='number of epochs')
+    parser.add_argument('--batch_size', type=int, default='1', help='batch size')
+    parser.add_argument('--num_batch', type=int, default='10', help='number of batches in each epoch')
+    parser.add_argument('--lr', type=float, default='0.0001', help='initial learning rate')
+    parser.add_argument('--acceleration_factor', type=float,
+                        default='6.0', help='Acceleration factor for k-space sampling')
+    parser.add_argument('--sampled_lines', type=int,
+                        default='15', help='Number of sampled lines at k-space center')
     parser.add_argument('--work_dir', type=str, default='crnn', help='work directory')
     parser.add_argument('--debug', action='store_true', help='debug mode')
     parser.add_argument('--save_fig', action='store_true', help='Save output images and masks')
