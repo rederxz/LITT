@@ -60,7 +60,7 @@ if __name__ == '__main__':
     parser.add_argument('--save_every', type=int, default=20, help='Epoch intervals to save')
     parser.add_argument('--work_dir', type=str, default='crnn', help='work directory')
     parser.add_argument('--debug', action='store_true', help='debug mode')
-    # parser.add_argument('--save_fig', action='store_true', help='Save output images and masks')
+    # parser.add_argument('--save_fig', action='store_true', help='Save output images and masks')  # TODO
     args = parser.parse_args()
 
     # aug = True
@@ -108,7 +108,7 @@ if __name__ == '__main__':
         train_loss = 0
         train_batches = 0
         rec_net.train()
-        for im in iterate_minibatch(data=train, batch_size=args.batch_size, shuffle=True):  # TODO: 为什么不使用trainloader？
+        for im in iterate_minibatch(data=train, batch_size=args.batch_size, shuffle=True):  # TODO: 为什么不使用dataloader？
             im_u, k_u, mask, gnd = prep_input(im, acc=args.acc, sample_n=args.sampled_lines)
             if torch.cuda.is_available():
                 im_u, k_u, mask, gnd = im_u.cuda(), k_u.cuda(), mask.cuda(), gnd.cuda()
@@ -184,8 +184,8 @@ if __name__ == '__main__':
                 break
 
         test_loss /= test_batches
-        base_psnr /= test_batches
-        test_psnr /= test_batches
+        base_psnr /= test_batches * 1  # "1" for iteration within each mini-batch
+        test_psnr /= test_batches * 1
         print(time.strftime('%H:%M:%S') + ' ' + f'test'
               + ' - ' + f'loss: {test_loss}'
               + ', ' + f'base PSNR: {base_psnr}'
