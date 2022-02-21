@@ -92,9 +92,9 @@ class DataConsistencyInKspace(nn.Module):
         x_res = torch.fft.ifft2(out, norm=self.normalized)
         x_res = torch.view_as_real(x_res)
 
-        if x.dim() == 4:
+        if x_res.dim() == 4:
             x_res = x_res.permute(0, 3, 1, 2)
-        elif x.dim() == 5:
+        elif x_res.dim() == 5:
             x_res = x_res.permute(0, 4, 2, 3, 1)
 
         return x_res
