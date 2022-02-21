@@ -184,8 +184,8 @@ if __name__ == '__main__':
                 break
 
         test_loss /= test_batches
-        base_psnr /= (test_batches * 1)
-        test_psnr /= (test_batches * 1)
+        base_psnr /= test_batches
+        test_psnr /= test_batches
         print(time.strftime('%H:%M:%S') + ' ' + f'test'
               + ' - ' + f'loss: {test_loss}'
               + ', ' + f'base PSNR: {base_psnr}'
