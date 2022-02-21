@@ -117,11 +117,12 @@ if __name__ == '__main__':
     # data, each sample [n_samples, t, x, y] or [n_samples, echo, t, x, y]
     train_transform = None  # TODO: 数据预处理与数据增强
     train_dataset = get_LITT_dataset(data_root=args.data_path, split='train', nt_network=args.nt_network,
-                                     single_echo=True, acc=args.acc, sample_n=args.sample_n, transform=train_transform)
+                                     single_echo=True, acc=args.acc, sample_n=args.sampled_lines,
+                                     transform=train_transform)
     val_dataset = get_LITT_dataset(data_root=args.data_path, split='val', nt_network=args.nt_network,
-                                   single_echo=True, acc=args.acc, sample_n=args.sample_n)
+                                   single_echo=True, acc=args.acc, sample_n=args.sampled_lines)
     test_dataset = get_LITT_dataset(data_root=args.data_path, split='test', nt_network=args.nt_network,
-                                    single_echo=True, acc=args.acc, sample_n=args.sample_n)
+                                    single_echo=True, acc=args.acc, sample_n=args.sampled_lines)
 
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=2)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1, shuffle=False, num_workers=2)
