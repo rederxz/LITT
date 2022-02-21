@@ -292,7 +292,7 @@ class UniCRNNlayer(nn.Module):
         """
         nt, nb, nc, nx, ny = input.shape
         size_h = [nb, self.hidden_size, nx, ny]
-        hid_init = torch.zeros(size_h)  # the initial zero-valued hidden state
+        hid_init = input.zeros(size_h)  # the initial zero-valued hidden state (the same device and dtype as input)
 
         # forward
         output_f = []
@@ -347,7 +347,7 @@ class CRNN_MRI_UniDir(nn.Module):
         net = {}
         n_batch, n_ch, width, height, n_seq = x.size()
         size_h = [n_seq * n_batch, self.nf, width, height]
-        hid_init = torch.zeros(size_h)  # the initial zero-valued hidden state
+        hid_init = x.zeros(size_h)  # the initial zero-valued hidden state (the same device and dtype as x)
 
         # initialize hidden states
         for j in range(self.nd - 1):  # except for the last vanilla CNN layer, all layers maintain a hidden state
@@ -404,7 +404,7 @@ class CRNN_MRI_UniDir(nn.Module):
         net = {}
         n_batch, n_ch, width, height, n_seq = x.size()
         size_h = [n_seq * n_batch, self.nf, width, height]
-        hid_init = torch.zeros(size_h)  # the initial zero-valued hidden state
+        hid_init = x.zeros(size_h)  # the initial zero-valued hidden state (the same device and dtype as x)
 
         # initialize hidden states
         for j in range(self.nd - 1):  # except for the last vanilla CNN layer, all layers maintain a hidden state
