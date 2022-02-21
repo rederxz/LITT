@@ -32,10 +32,11 @@ def prep_input(im, **kwargs):
     mask = cs.cartesian_mask(im.shape, **kwargs)
     im_und, k_und = cs.undersample(im, mask)
 
-    im_gnd_l = torch.from_numpy(to_tensor_format(im))
-    im_und_l = torch.from_numpy(to_tensor_format(im_und))
-    k_und_l = torch.from_numpy(to_tensor_format(k_und))
-    mask_l = torch.from_numpy(to_tensor_format(mask, mask=True))
+    # convert to float32 tensor (original format is float64)
+    im_gnd_l = torch.from_numpy(to_tensor_format(im)).float()
+    im_und_l = torch.from_numpy(to_tensor_format(im_und)).float()
+    k_und_l = torch.from_numpy(to_tensor_format(k_und)).float()
+    mask_l = torch.from_numpy(to_tensor_format(mask, mask=True)).float()
 
     return im_und_l, k_und_l, mask_l, im_gnd_l
 
