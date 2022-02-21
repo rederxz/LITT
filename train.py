@@ -114,7 +114,7 @@ if __name__ == '__main__':
     if not os.path.exists(args.work_dir):
         os.mkdir(args.work_dir)
 
-    # data, each sample [n_samples, t, x, y] or [n_samples, echo, t, x, y]
+    # data, each sample [n_samples(, echo), t, x, y]
     train_transform = None  # TODO: 数据预处理与数据增强
     train_dataset = get_LITT_dataset(data_root=args.data_path, split='train', nt_network=args.nt_network,
                                      single_echo=True, acc=args.acc, sample_n=args.sampled_lines,

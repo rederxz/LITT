@@ -220,20 +220,19 @@ class LITT(torch.utils.data.dataset.Dataset):
             mFFE_img_imag = mat_data['mFFE_img_imag']
             mFFE_img_real = mat_data['mFFE_img_real']
             mFFE_img_complex = mFFE_img_real + 1j * mFFE_img_imag  # [x, y, time, echo]
-            mFFE_img_complex = mFFE_img_complex.transpose((3, 0, 1, 2))  # [echo, x, y, time]
 
-            if single_echo:  # [time, x, y]
-                mFFE_img_complex = mFFE_img_complex[0]  # TODO: if single echo, use the 1st one
+            if single_echo:
+                mFFE_img_complex = mFFE_img_complex[..., 0]  # TODO: if single echo, use the 1st one
 
             if nt_network is None:
                 self.data.append(mFFE_img_complex)
             else:  # slice the data along time dim according to nt_network
-                total_t = mFFE_img_complex.shape[-1]
+                total_t = mFFE_img_complex.shape[2]  # [x, y, time(, echo)]
                 complete_slice = total_t // nt_network
                 for i in range(complete_slice):
-                    self.data.append(mFFE_img_complex[..., i * nt_network:(i + 1) * nt_network])
+                    self.data.append(mFFE_img_complex[:, :, i * nt_network:(i + 1) * nt_network])
                 if total_t % nt_network > 0:
-                    self.data.append(mFFE_img_complex[..., -nt_network:])
+                    self.data.append(mFFE_img_complex[:, :, -nt_network:])
 
     def __getitem__(self, idx):
         img_gnd = self.data[idx]
@@ -244,14 +243,14 @@ class LITT(torch.utils.data.dataset.Dataset):
         mask = cs.cartesian_mask(img_gnd.shape, acc=self.acc, sample_n=self.sample_n)
         img_u, k_u = cs.undersample(img_gnd, mask)
 
-        # complex64 -> float32, [(echo,) x, y, time] -> [(echo,) x, y, time, 2]
+        # complex64 -> float32, [x, y, time(, echo)] -> [x, y, time(, echo), 2]
         img_gnd_tensor = torch.view_as_real(torch.from_numpy(img_gnd))  # with shape
         img_u_tensor = torch.view_as_real(torch.from_numpy(img_u))
         k_u_tensor = torch.view_as_real(torch.from_numpy(k_u))
         mask_tensor = torch.view_as_real(torch.from_numpy(mask*(1+1j)))
 
-        # [(echo,) x, y, time, 2] -> [(echo,) 2, x, y, time]
-        perm = (3, 0, 1, 2) if self.single_echo else (0, 4, 1, 2, 3)
+        # [x, y, time(, echo), 2] -> [(echo,) 2, x, y, time]
+        perm = (3, 0, 1, 2) if self.single_echo else (3, 4, 0, 1, 2)
         img_gnd_tensor = img_gnd_tensor.permute(perm)
         img_u_tensor = img_u_tensor.permute(perm)
         k_u_tensor = k_u_tensor.permute(perm)
