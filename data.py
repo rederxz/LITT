@@ -1,6 +1,7 @@
 import os
 
 import numpy as np
+from torch.utils.data.dataset import Dataset
 from scipy.io import loadmat
 
 '''
@@ -124,6 +125,59 @@ def load_data_v2(data_path, split, nt_network=None, single_echo=True):
     data = np.array(data)
 
     return data
+
+
+class LITT(Dataset):
+    def __init__(self, mat_file_path, nt_network=None, single_echo=True, transform=None):
+        """
+        build a LITT dataset
+        :param mat_file_path: a list, the paths of mat files
+        :param nt_network: the number of time frames required
+        :param single_echo: if only use one echo
+        :param transform: transform applied to each sample
+        :return: if single_echo, each sample has shape [x, y, frames]; else [echos, x, y, frames]
+        frames is set to nt_network if specified
+        """
+        super(LITT, self).__init__()
+        self.mat_file_path = mat_file_path
+        self.transform = transform
+        self.data = list()
+        for file_path in self.mat_file_path:
+            mat_data = loadmat(file_path)
+            mFFE_img_imag = mat_data['mFFE_img_imag']
+            mFFE_img_real = mat_data['mFFE_img_real']
+            mFFE_img_complex = mFFE_img_real + 1j * mFFE_img_imag  # [x, y, time, echo]
+            mFFE_img_complex = mFFE_img_complex.transpose((3, 0, 1, 2))  # [echo, x, y, time]
+
+            if single_echo:
+                mFFE_img_complex = mFFE_img_complex[0]  # TODO: if single echo, use the 1st one
+
+            if nt_network is None:
+                self.data.append(mFFE_img_complex)
+            else:  # slice the data along time dim according to nt_network
+                total_t = mFFE_img_complex.shape[-1]
+                complete_slice = total_t // nt_network
+                for i in range(complete_slice):
+                    self.data.append(mFFE_img_complex[..., i * nt_network:(i + 1) * nt_network])
+                if total_t % nt_network > 0:
+                    self.data.append(mFFE_img_complex[..., -nt_network:])
+
+    def __getitem__(self, idx):
+        item = self.data[idx]
+        if self.transform:
+            item = self.transform(item)
+        return item
+
+    def __len__(self):
+        return len(self.data)
+
+
+def get_LITT_dataset(data_root, split, **kwargs):
+    mat_file_path = os.listdir(data_root)
+    mat_file_path = mat_file_path[:8] if split == 'train' \
+        else (mat_file_path[8:9] if split == 'validation' else mat_file_path[9:10])
+    dataset = LITT(mat_file_path, **kwargs)
+    return dataset
 
 
 def cut_data(input, block_size, cut_edge=None):
