@@ -73,11 +73,11 @@ if __name__ == '__main__':
     save_every = 20
 
     # dataset, sample shape [n_samples, x, y, t]
-    train = load_data_v2(data_path='../LITT_data/',
+    train = load_data_v2(data_path=args.data_path,
                          split='train', nt_network=nt_network)
-    validate = load_data_v2(data_path='../LITT_data/',
+    validate = load_data_v2(data_path=args.data_path,
                          split='validation', nt_network=nt_network)
-    test = load_data_v2(data_path='../LITT_data/',
+    test = load_data_v2(data_path=args.data_path,
                          split='test', nt_network=nt_network)
 
     # if aug:
