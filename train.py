@@ -12,8 +12,15 @@ from metric import complex_psnr
 from utils import from_tensor_format, to_tensor_format
 
 
-def iterate_minibatch(data, nbatch_per_epoch, batch_size, shuffle=True):
-    n = nbatch_per_epoch
+def iterate_minibatch(data, batch_size, shuffle=True):
+    """
+    yield batches in the given dataset
+    :param data: data set with shape [n_samples, t, x, y]
+    :param batch_size: ...
+    :param shuffle: ...
+    :return:
+    """
+    n = data.shape[0]
     if shuffle:
         data = np.random.permutation(data)
     for i in range(0, n, batch_size):
@@ -45,7 +52,7 @@ if __name__ == '__main__':
     parser.add_argument('--data_path', type=str, default='./LITT_data/', help='the directory of data')
     parser.add_argument('--num_epoch', type=int, default=200, help='number of epochs')
     parser.add_argument('--batch_size', type=int, default=1, help='batch size')
-    parser.add_argument('--num_batch', type=int, default=10, help='number of batches in each epoch')
+    # parser.add_argument('--num_batch', type=int, default=10, help='number of batches in each epoch')  # TODO why?
     parser.add_argument('--lr', type=float, default=0.0001, help='initial learning rate')
     parser.add_argument('--acc', type=float, default=6.0, help='Acceleration factor for k-space sampling')
     parser.add_argument('--sampled_lines', type=int, default=15, help='Number of sampled lines at k-space center')
@@ -101,7 +108,7 @@ if __name__ == '__main__':
         train_loss = 0
         train_batches = 0
         rec_net.train()
-        for im in iterate_minibatch(data=train, nbatch_per_epoch=args.num_batch, batch_size=args.batch_size, shuffle=True):  # TODO: 为什么不使用trainloader？
+        for im in iterate_minibatch(data=train, batch_size=args.batch_size, shuffle=True):  # TODO: 为什么不使用trainloader？
             im_u, k_u, mask, gnd = prep_input(im, acc=args.acc, sample_n=args.sampled_lines)
             if torch.cuda.is_available():
                 im_u, k_u, mask, gnd = im_u.cuda(), k_u.cuda(), mask.cuda(), gnd.cuda()
@@ -116,7 +123,7 @@ if __name__ == '__main__':
             train_loss += loss.item()
             train_batches += 1
 
-            if args.debug and train_batches == 20:  # TODO: 为什么要限制batch数为20？
+            if args.debug and train_batches == 20:
                 break
         train_loss /= train_batches
         print(time.strftime('%H:%M:%S') + ' ' + f'train'
@@ -126,7 +133,7 @@ if __name__ == '__main__':
         validate_loss = 0
         validate_batches = 0
         rec_net.eval()
-        for im in iterate_minibatch(data=validate, nbatch_per_epoch=1, batch_size=args.batch_size, shuffle=False):
+        for im in iterate_minibatch(data=validate, batch_size=1, shuffle=False):
             with torch.no_grad():
                 im_u, k_u, mask, gnd = prep_input(im, acc=args.acc, sample_n=args.sampled_lines)
                 if torch.cuda.is_available():
@@ -156,7 +163,7 @@ if __name__ == '__main__':
         base_psnr = 0
         test_psnr = 0
         test_batches = 0
-        for im in iterate_minibatch(data=test, nbatch_per_epoch=1, batch_size=1, shuffle=False):  # TODO 原本batch_size=3是什么操作？
+        for im in iterate_minibatch(data=test, batch_size=1, shuffle=False):  # TODO 原本batch_size=3是什么操作？
             with torch.no_grad():
                 im_u, k_u, mask, gnd = prep_input(im, acc=args.acc, sample_n=args.sampled_lines)
                 if torch.cuda.is_available():
