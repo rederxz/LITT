@@ -72,11 +72,11 @@ if __name__ == '__main__':
     save_every = 20
 
     # dataset, sample shape [n_samples, x, y, t]
-    train = load_data_v2(data_path='/home/jieying/dynamic_imging/LITT_data/Tiantan/',
+    train = load_data_v2(data_path='../LITT_data/',
                          split='train', nt_network=nt_network)
-    validate = load_data_v2(data_path='/home/jieying/dynamic_imging/LITT_data/Tiantan/',
+    validate = load_data_v2(data_path='../LITT_data/',
                          split='validation', nt_network=nt_network)
-    test = load_data_v2(data_path='/home/jieying/dynamic_imging/LITT_data/Tiantan/',
+    test = load_data_v2(data_path='../LITT_data/',
                          split='test', nt_network=nt_network)
 
     # if aug:
