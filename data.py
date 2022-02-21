@@ -248,7 +248,7 @@ class LITT(torch.utils.data.dataset.Dataset):
         img_gnd_tensor = torch.view_as_real(torch.from_numpy(img_gnd))  # with shape
         img_u_tensor = torch.view_as_real(torch.from_numpy(img_u))
         k_u_tensor = torch.view_as_real(torch.from_numpy(k_u))
-        mask_tensor = torch.view_as_real(torch.from_numpy(mask))
+        mask_tensor = torch.view_as_real(torch.from_numpy(mask*(1+1j)))
 
         # [(echo,) x, y, time, 2] -> [(echo,) 2, x, y, time]
         perm = (3, 0, 1, 2) if self.single_echo else (0, 4, 1, 2, 3)
