@@ -52,6 +52,7 @@ def step_train(data_generator, model, criterion, optimizer):
     train_batches = 0
     model.train()
     for im in data_generator:
+        # TODO: 在这里加入数据增强 (传入参数data_aug)?
         im_u, k_u, mask, gnd = prep_input(im, acc=args.acc, sample_n=args.sampled_lines)
         if torch.cuda.is_available():
             im_u, k_u, mask, gnd = im_u.cuda(), k_u.cuda(), mask.cuda(), gnd.cuda()
@@ -167,7 +168,7 @@ if __name__ == '__main__':
     validate = validate.transpose((0, 3, 1, 2))  # ...
     test = test.transpose((0, 3, 1, 2))  # ...
 
-    # TODO: 为什么不使用 dataloader？
+    # TODO: 改为使用dataloader
     train_generator = iterate_minibatch(data=train, batch_size=args.batch_size, shuffle=True)
     validate_generator = iterate_minibatch(data=validate, batch_size=1, shuffle=False)
     test_generator = iterate_minibatch(data=test, batch_size=1, shuffle=False)
