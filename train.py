@@ -1,4 +1,3 @@
-#!/home/jieying/anaconda3/bin/python
 import argparse
 import os
 import time
@@ -44,49 +43,43 @@ def prep_input(im, **kwargs):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--data_path', type=str, default='./LITT_data/', help='the directory of data')
-    parser.add_argument('--num_epoch', type=int, default='200', help='number of epochs')
-    parser.add_argument('--batch_size', type=int, default='1', help='batch size')
-    parser.add_argument('--num_batch', type=int, default='10', help='number of batches in each epoch')
-    parser.add_argument('--lr', type=float, default='0.0001', help='initial learning rate')
-    parser.add_argument('--acceleration_factor', type=float,
-                        default='6.0', help='Acceleration factor for k-space sampling')
-    parser.add_argument('--sampled_lines', type=int,
-                        default='15', help='Number of sampled lines at k-space center')
+    parser.add_argument('--num_epoch', type=int, default=200, help='number of epochs')
+    parser.add_argument('--batch_size', type=int, default=1, help='batch size')
+    parser.add_argument('--num_batch', type=int, default=10, help='number of batches in each epoch')
+    parser.add_argument('--lr', type=float, default=0.0001, help='initial learning rate')
+    parser.add_argument('--acc', type=float, default=6.0, help='Acceleration factor for k-space sampling')
+    parser.add_argument('--sampled_lines', type=int, default=15, help='Number of sampled lines at k-space center')
+    parser.add_argument('--nt_network', type=int, default=5, help='Time frames involved in the network.')
+    parser.add_argument('--save_every', type=int, default=20, help='Epoch intervals to save')
     parser.add_argument('--work_dir', type=str, default='crnn', help='work directory')
     parser.add_argument('--debug', action='store_true', help='debug mode')
-    parser.add_argument('--save_fig', action='store_true', help='Save output images and masks')
+    # parser.add_argument('--save_fig', action='store_true', help='Save output images and masks')
     args = parser.parse_args()
 
-    num_epoch = args.num_epoch
-    batch_size = args.batch_size
-    num_batch = args.num_batch
-    acc = args.acceleration_factor  # under-sampling rate
-    sample_n = args.sampled_lines  # Number of sampled lines at k-space center
+    # aug = True
+    # block_size = [256, 32]
+    # rotation_xy = False
+    # flip_t = False
 
-    save_fig = True
-    nt_network = 5
-
-    aug = True
-    block_size = [256, 32]
-    rotation_xy = False
-    flip_t = False
-
-    save_every = 20
+    # create work directory if needed
+    if os.path.exists(args.work_dir):
+        os.mkdir(args.work_dir)
 
     # dataset, sample shape [n_samples, x, y, t]
     train = load_data_v2(data_path=args.data_path,
-                         split='train', nt_network=nt_network)
+                         split='train', nt_network=args.nt_network)
     validate = load_data_v2(data_path=args.data_path,
-                         split='validation', nt_network=nt_network)
+                         split='validation', nt_network=args.nt_network)
     test = load_data_v2(data_path=args.data_path,
-                         split='test', nt_network=nt_network)
+                         split='test', nt_network=args.nt_network)
 
+    # TODO: 为什么不是在线的数据增强？
     # if aug:
     #     train = data_aug(train, block_size, rotation_xy, flip_t)
     #     validate = data_aug(validate, block_size, rotation_xy, flip_t)
     #     test = data_aug(test, block_size, rotation_xy, flip_t)  # TODO: test 为什么还需要数据增强?
 
-    # => [n_samples, t, x, y]
+    # sample shape => [n_samples, t, x, y]
     train = train.transpose((0, 3, 1, 2))
     validate = validate.transpose((0, 3, 1, 2))
     test = test.transpose((0, 3, 1, 2))
@@ -101,15 +94,15 @@ if __name__ == '__main__':
         criterion.cuda()
 
     # training & validation
-    for epoch in range(num_epoch):
-        print(f'Epoch {epoch + 1}/{num_epoch}')
+    for epoch in range(args.num_epoch):
+        print(f'Epoch {epoch + 1}/{args.num_epoch}')
 
         # train step
         train_loss = 0
         train_batches = 0
         rec_net.train()
-        for im in iterate_minibatch(data=train, nbatch_per_epoch=num_batch, batch_size=batch_size, shuffle=True):  # TODO: 为什么不使用trainloader？
-            im_u, k_u, mask, gnd = prep_input(im, acc=acc, sample_n=sample_n)
+        for im in iterate_minibatch(data=train, nbatch_per_epoch=args.num_batch, batch_size=args.batch_size, shuffle=True):  # TODO: 为什么不使用trainloader？
+            im_u, k_u, mask, gnd = prep_input(im, acc=args.acc, sample_n=args.sampled_lines)
             if torch.cuda.is_available():
                 im_u, k_u, mask, gnd = im_u.cuda(), k_u.cuda(), mask.cuda(), gnd.cuda()
 
@@ -133,9 +126,9 @@ if __name__ == '__main__':
         validate_loss = 0
         validate_batches = 0
         rec_net.eval()
-        for im in iterate_minibatch(data=validate, nbatch_per_epoch=1, batch_size=batch_size, shuffle=False):
+        for im in iterate_minibatch(data=validate, nbatch_per_epoch=1, batch_size=args.batch_size, shuffle=False):
             with torch.no_grad():
-                im_u, k_u, mask, gnd = prep_input(im, acc=acc, sample_n=sample_n)
+                im_u, k_u, mask, gnd = prep_input(im, acc=args.acc, sample_n=args.sampled_lines)
                 if torch.cuda.is_available():
                     im_u, k_u, mask, gnd = im_u.cuda(), k_u.cuda(), mask.cuda(), gnd.cuda()
                 pred = rec_net(im_u, k_u, mask)
@@ -151,7 +144,7 @@ if __name__ == '__main__':
               + ' - ' + f'loss: {validate_loss}')
 
         # test step
-        if epoch % save_every != 0:
+        if epoch % args.save_every != 0:
             continue
 
         # save model
@@ -163,9 +156,9 @@ if __name__ == '__main__':
         base_psnr = 0
         test_psnr = 0
         test_batches = 0
-        for im in iterate_minibatch(data=test, nbatch_per_epoch=1, batch_size=3, shuffle=False):  # TODO batch_size=3是什么操作？
+        for im in iterate_minibatch(data=test, nbatch_per_epoch=1, batch_size=1, shuffle=False):  # TODO 原本batch_size=3是什么操作？
             with torch.no_grad():
-                im_u, k_u, mask, gnd = prep_input(im, acc=acc, sample_n=sample_n)
+                im_u, k_u, mask, gnd = prep_input(im, acc=args.acc, sample_n=args.sampled_lines)
                 if torch.cuda.is_available():
                     im_u, k_u, mask, gnd = im_u.cuda(), k_u.cuda(), mask.cuda(), gnd.cuda()
                 pred = rec_net(im_u, k_u, mask)
@@ -184,8 +177,8 @@ if __name__ == '__main__':
                 break
 
         test_loss /= test_batches
-        base_psnr /= (test_batches * batch_size)
-        test_psnr /= (test_batches * batch_size)
+        base_psnr /= (test_batches * 1)
+        test_psnr /= (test_batches * 1)
         print(time.strftime('%H:%M:%S') + ' ' + f'test'
               + ' - ' + f'loss: {test_loss}'
               + ', ' + f'base PSNR: {base_psnr}'
