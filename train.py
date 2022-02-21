@@ -144,7 +144,7 @@ if __name__ == '__main__':
               + ' - ' + f'loss: {validate_loss}')
 
         # test step
-        if epoch % args.save_every != 0:
+        if (epoch + 1) % args.save_every != 0:
             continue
 
         # save model
