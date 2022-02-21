@@ -3,47 +3,24 @@ import os
 import time
 
 import torch
-import numpy as np
 
-from data import load_data_v2, data_aug, get_LITT_dataset
-from model import CRNN_MRI_UniDir
-import compressed_sensing as cs
+from data import get_LITT_dataset
 from metric import complex_psnr
-from utils import from_tensor_format, to_tensor_format
-
-
-def prep_input(im, **kwargs):
-    """
-    Under-sample the batch, then reformat them into what the network accepts.
-    :param im: tensor of shape [n_samples, t, x, y]
-    :param acc: accelerate rate
-    :param sample_n:
-    :return: i_und, k_und, mask, i_gt [n_samples, n_channels, x, y, t]
-    """
-    mask = cs.cartesian_mask(im.shape, **kwargs)
-    im_und, k_und = cs.undersample(im, mask)
-
-    # convert to float32 tensor (original format is float64)
-    im_gnd_l = torch.from_numpy(to_tensor_format(im)).float()
-    im_und_l = torch.from_numpy(to_tensor_format(im_und)).float()
-    k_und_l = torch.from_numpy(to_tensor_format(k_und)).float()
-    mask_l = torch.from_numpy(to_tensor_format(mask, mask=True)).float()
-
-    return im_und_l, k_und_l, mask_l, im_gnd_l
+from model import CRNN_MRI_UniDir
+from utils import from_tensor_format
 
 
 def step_train(dataloader, model, criterion, optimizer):
     train_loss = 0
     train_batches = 0
     model.train()
-    for im in dataloader:
-        # TODO: 在这里加入数据增强 (传入参数data_aug)?
-        im_u, k_u, mask, gnd = prep_input(im, acc=args.acc, sample_n=args.sampled_lines)
+    for batch in dataloader:
+        img_u, k_u, mask, img_gnd = batch['img_u'], batch['k_u'], batch['mask'], batch['img_gnd']
         if torch.cuda.is_available():
-            im_u, k_u, mask, gnd = im_u.cuda(), k_u.cuda(), mask.cuda(), gnd.cuda()
+            img_u, k_u, mask, img_gnd = img_u.cuda(), k_u.cuda(), mask.cuda(), img_gnd.cuda()
 
-        rec = model(im_u, k_u, mask)
-        loss = criterion(rec, gnd)
+        rec = model(img_u, k_u, mask)
+        loss = criterion(rec, img_gnd)
 
         optimizer.zero_grad()
         loss.backward()
@@ -58,25 +35,25 @@ def step_train(dataloader, model, criterion, optimizer):
           + ' - ' + f'loss: {train_loss}')
 
 
-def step_validate(dataloader, model, criterion):
-    validate_loss = 0
-    validate_batches = 0
+def step_val(dataloader, model, criterion):
+    val_loss = 0
+    val_batches = 0
     model.eval()
-    for im in dataloader:
+    for batch in dataloader:
         with torch.no_grad():
-            im_u, k_u, mask, gnd = prep_input(im, acc=args.acc, sample_n=args.sampled_lines)
+            img_u, k_u, mask, img_gnd = batch['img_u'], batch['k_u'], batch['mask'], batch['img_gnd']
             if torch.cuda.is_available():
-                im_u, k_u, mask, gnd = im_u.cuda(), k_u.cuda(), mask.cuda(), gnd.cuda()
-            pred = model(im_u, k_u, mask)
-            loss = criterion(pred, gnd)
+                img_u, k_u, mask, img_gnd = img_u.cuda(), k_u.cuda(), mask.cuda(), img_gnd.cuda()
+            pred = model(img_u, k_u, mask)
+            loss = criterion(pred, img_gnd)
 
-        validate_loss += loss.item()
-        validate_batches += 1
+        val_loss += loss.item()
+        val_batches += 1
 
-    validate_loss /= validate_batches
+    val_loss /= val_batches
 
-    print(time.strftime('%H:%M:%S') + ' ' + f'valid'
-          + ' - ' + f'loss: {validate_loss}')
+    print(time.strftime('%H:%M:%S') + ' ' + f'val'
+          + ' - ' + f'loss: {val_loss}')
 
 
 def step_test(dataloader, model, criterion):
@@ -84,22 +61,22 @@ def step_test(dataloader, model, criterion):
     base_psnr = 0
     test_psnr = 0
     test_batches = 0
-    for im in dataloader:
+    for batch in dataloader:
         with torch.no_grad():
-            im_u, k_u, mask, gnd = prep_input(im, acc=args.acc, sample_n=args.sampled_lines)
+            img_u, k_u, mask, img_gnd = batch['img_u'], batch['k_u'], batch['mask'], batch['img_gnd']
             if torch.cuda.is_available():
-                im_u, k_u, mask, gnd = im_u.cuda(), k_u.cuda(), mask.cuda(), gnd.cuda()
-            pred = model(im_u, k_u, mask)
-            loss = criterion(pred, gnd)
+                img_u, k_u, mask, img_gnd = img_u.cuda(), k_u.cuda(), mask.cuda(), img_gnd.cuda()
+            pred = model(img_u, k_u, mask)
+            loss = criterion(pred, img_gnd)
 
         test_loss += loss.item()
         test_batches += 1
 
-        for im_i, und_i, pred_i in zip(im,
-                                       from_tensor_format(im_u.cpu().numpy()),
-                                       from_tensor_format(pred.cpu().numpy())):
-            base_psnr += complex_psnr(im_i, und_i, peak='max')
-            test_psnr += complex_psnr(im_i, pred_i, peak='max')
+        for img_i, img_u_i, pred_i in zip(img_gnd,
+                                          from_tensor_format(img_u.cpu().numpy()),
+                                          from_tensor_format(pred.cpu().numpy())):
+            base_psnr += complex_psnr(img_i, img_u_i, peak='max')
+            test_psnr += complex_psnr(img_i, pred_i, peak='max')
 
     test_loss /= test_batches
     base_psnr /= test_batches * 1  # "1" for iteration within each mini-batch
@@ -137,12 +114,14 @@ if __name__ == '__main__':
     if not os.path.exists(args.work_dir):
         os.mkdir(args.work_dir)
 
-    # dataset, each sample [n_samples, t, x, y]
-    train_transform = None
-    train_dataset = get_LITT_dataset(data_root=args.data_path, split='train',
-                                     nt_network=args.nt_network, transform=train_transform)  # TODO: 数据预处理与数据增强
-    val_dataset = get_LITT_dataset(data_root=args.data_path, split='val', nt_network=args.nt_network)
-    test_dataset = get_LITT_dataset(data_root=args.data_path, split='test', nt_network=args.nt_network)
+    # data, each sample [n_samples, t, x, y] or [n_samples, echo, t, x, y]
+    train_transform = None  # TODO: 数据预处理与数据增强
+    train_dataset = get_LITT_dataset(data_root=args.data_path, split='train', nt_network=args.nt_network,
+                                     single_echo=True, acc=args.acc, sample_n=args.sample_n, transform=train_transform)
+    val_dataset = get_LITT_dataset(data_root=args.data_path, split='val', nt_network=args.nt_network,
+                                   single_echo=True, acc=args.acc, sample_n=args.sample_n)
+    test_dataset = get_LITT_dataset(data_root=args.data_path, split='test', nt_network=args.nt_network,
+                                    single_echo=True, acc=args.acc, sample_n=args.sample_n)
 
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=2)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1, shuffle=False, num_workers=2)
@@ -162,6 +141,6 @@ if __name__ == '__main__':
     for epoch in range(args.num_epoch):
         print(f'Epoch {epoch + 1}/{args.num_epoch}')
         step_train(train_loader, rec_net, criterion, optimizer)
-        step_validate(val_loader, rec_net, criterion)
+        step_val(val_loader, rec_net, criterion)
         if (epoch + 1) % args.test_interval == 0:
             step_test(test_loader, rec_net, criterion)
