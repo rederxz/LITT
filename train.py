@@ -101,7 +101,7 @@ if __name__ == '__main__':
 
     # training & validation
     for epoch in range(num_epoch):
-        print(f'Epoch {epoch + 1}/{num_epoch + 1}')
+        print(f'Epoch {epoch + 1}/{num_epoch}')
 
         # train step
         train_loss = 0
@@ -109,6 +109,8 @@ if __name__ == '__main__':
         rec_net.train()
         for im in iterate_minibatch(data=train, nbatch_per_epoch=num_batch, batch_size=batch_size, shuffle=True):  # TODO: 为什么不使用trainloader？
             im_u, k_u, mask, gnd = prep_input(im, acc=acc, sample_n=sample_n)
+            if torch.cuda.is_available():
+                im_u, k_u, mask, gnd = im_u.cuda(), k_u.cuda(), mask.cuda(), gnd.cuda()
 
             rec = rec_net(im_u, k_u, mask)
             loss = criterion(rec, gnd)
@@ -133,6 +135,8 @@ if __name__ == '__main__':
         for im in iterate_minibatch(data=validate, nbatch_per_epoch=1, batch_size=batch_size, shuffle=False):
             with torch.no_grad():
                 im_u, k_u, mask, gnd = prep_input(im, acc=acc, sample_n=sample_n)
+                if torch.cuda.is_available():
+                    im_u, k_u, mask, gnd = im_u.cuda(), k_u.cuda(), mask.cuda(), gnd.cuda()
                 pred = rec_net(im_u, k_u, mask)
                 loss = criterion(pred, gnd)
 
@@ -161,6 +165,8 @@ if __name__ == '__main__':
         for im in iterate_minibatch(data=test, nbatch_per_epoch=1, batch_size=3, shuffle=False):  # TODO batch_size=3是什么操作？
             with torch.no_grad():
                 im_u, k_u, mask, gnd = prep_input(im, acc=acc, sample_n=sample_n)
+                if torch.cuda.is_available():
+                    im_u, k_u, mask, gnd = im_u.cuda(), k_u.cuda(), mask.cuda(), gnd.cuda()
                 pred = rec_net(im_u, k_u, mask)
                 loss = criterion(pred, gnd)
 
