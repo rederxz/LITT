@@ -25,7 +25,7 @@ def load_data(type, nt_network, load_one_data_ind=None):
     nsp = len(data_list)
     ny_red = 10  # 10 fold
     sl = nsp // ny_red
-    # train 8; validate 1; test 1;
+    # train 8; val 1; test 1;
     if type == 'train':
         data_list = data_list[sl * 2:nsp]
     elif type == 'validation':
@@ -135,8 +135,8 @@ class LITT(Dataset):
         :param nt_network: the number of time frames required
         :param single_echo: if only use one echo
         :param transform: transform applied to each sample
-        :return: if single_echo, each sample has shape [x, y, frames]; else [echos, x, y, frames]
-        frames is set to nt_network if specified
+        :return: if single_echo, each sample has shape [time, x, y]; else [echos, time, x, y]
+        'time' size is set to nt_network if specified
         """
         super(LITT, self).__init__()
         self.mat_file_path = mat_file_path
@@ -147,20 +147,20 @@ class LITT(Dataset):
             mFFE_img_imag = mat_data['mFFE_img_imag']
             mFFE_img_real = mat_data['mFFE_img_real']
             mFFE_img_complex = mFFE_img_real + 1j * mFFE_img_imag  # [x, y, time, echo]
-            mFFE_img_complex = mFFE_img_complex.transpose((3, 0, 1, 2))  # [echo, x, y, time]
+            mFFE_img_complex = mFFE_img_complex.transpose((3, 2, 0, 1))  # [echo, time, x, y]
 
-            if single_echo:
+            if single_echo:  # [time, x, y]
                 mFFE_img_complex = mFFE_img_complex[0]  # TODO: if single echo, use the 1st one
 
             if nt_network is None:
                 self.data.append(mFFE_img_complex)
             else:  # slice the data along time dim according to nt_network
-                total_t = mFFE_img_complex.shape[-1]
+                total_t = mFFE_img_complex.shape[-3]
                 complete_slice = total_t // nt_network
                 for i in range(complete_slice):
-                    self.data.append(mFFE_img_complex[..., i * nt_network:(i + 1) * nt_network])
+                    self.data.append(mFFE_img_complex[..., i * nt_network:(i + 1) * nt_network, :, :])
                 if total_t % nt_network > 0:
-                    self.data.append(mFFE_img_complex[..., -nt_network:])
+                    self.data.append(mFFE_img_complex[..., -nt_network:, :, :])
 
     def __getitem__(self, idx):
         item = self.data[idx]
@@ -175,7 +175,7 @@ class LITT(Dataset):
 def get_LITT_dataset(data_root, split, **kwargs):
     mat_file_path = os.listdir(data_root)
     mat_file_path = mat_file_path[:8] if split == 'train' \
-        else (mat_file_path[8:9] if split == 'validation' else mat_file_path[9:10])
+        else (mat_file_path[8:9] if split == 'val' else mat_file_path[9:10])
     dataset = LITT(mat_file_path, **kwargs)
     return dataset
 

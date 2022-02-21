@@ -5,26 +5,11 @@ import time
 import torch
 import numpy as np
 
-from data import load_data_v2, data_aug
+from data import load_data_v2, data_aug, get_LITT_dataset
 from model import CRNN_MRI_UniDir
 import compressed_sensing as cs
 from metric import complex_psnr
 from utils import from_tensor_format, to_tensor_format
-
-
-def iterate_minibatch(data, batch_size, shuffle=True):
-    """
-    yield batches in the given dataset
-    :param data: data set with shape [n_samples, t, x, y]
-    :param batch_size: ...
-    :param shuffle: ...
-    :return:
-    """
-    n = data.shape[0]
-    if shuffle:
-        data = np.random.permutation(data)
-    for i in range(0, n, batch_size):
-        yield data[i:i + batch_size]
 
 
 def prep_input(im, **kwargs):
@@ -47,11 +32,11 @@ def prep_input(im, **kwargs):
     return im_und_l, k_und_l, mask_l, im_gnd_l
 
 
-def step_train(data_generator, model, criterion, optimizer):
+def step_train(dataloader, model, criterion, optimizer):
     train_loss = 0
     train_batches = 0
     model.train()
-    for im in data_generator:
+    for im in dataloader:
         # TODO: 在这里加入数据增强 (传入参数data_aug)?
         im_u, k_u, mask, gnd = prep_input(im, acc=args.acc, sample_n=args.sampled_lines)
         if torch.cuda.is_available():
@@ -73,11 +58,11 @@ def step_train(data_generator, model, criterion, optimizer):
           + ' - ' + f'loss: {train_loss}')
 
 
-def step_validate(data_generator, model, criterion):
+def step_validate(dataloader, model, criterion):
     validate_loss = 0
     validate_batches = 0
     model.eval()
-    for im in data_generator:
+    for im in dataloader:
         with torch.no_grad():
             im_u, k_u, mask, gnd = prep_input(im, acc=args.acc, sample_n=args.sampled_lines)
             if torch.cuda.is_available():
@@ -94,12 +79,12 @@ def step_validate(data_generator, model, criterion):
           + ' - ' + f'loss: {validate_loss}')
 
 
-def step_test(data_generator, model, criterion):
+def step_test(dataloader, model, criterion):
     test_loss = 0
     base_psnr = 0
     test_psnr = 0
     test_batches = 0
-    for im in data_generator:
+    for im in dataloader:
         with torch.no_grad():
             im_u, k_u, mask, gnd = prep_input(im, acc=args.acc, sample_n=args.sampled_lines)
             if torch.cuda.is_available():
@@ -152,26 +137,16 @@ if __name__ == '__main__':
     if not os.path.exists(args.work_dir):
         os.mkdir(args.work_dir)
 
-    # data
-    train = load_data_v2(data_path=args.data_path,
-                         split='train', nt_network=args.nt_network)  # each sample [n_samples, x, y, t]
-    validate = load_data_v2(data_path=args.data_path, split='validation', nt_network=args.nt_network)  # ...
-    test = load_data_v2(data_path=args.data_path, split='test', nt_network=args.nt_network)  # ...
+    # dataset, each sample [n_samples, t, x, y]
+    train_transform = None
+    train_dataset = get_LITT_dataset(data_root=args.data_path, split='train',
+                                     nt_network=args.nt_network, transform=train_transform)  # TODO: 数据预处理与数据增强
+    val_dataset = get_LITT_dataset(data_root=args.data_path, split='val', nt_network=args.nt_network)
+    test_dataset = get_LITT_dataset(data_root=args.data_path, split='test', nt_network=args.nt_network)
 
-    # TODO: 为什么不是在线的数据增强？
-    # if aug:
-    #     train = data_aug(train, block_size, rotation_xy, flip_t)
-    #     validate = data_aug(validate, block_size, rotation_xy, flip_t)
-    #     test = data_aug(test, block_size, rotation_xy, flip_t)  # TODO: test 为什么还需要数据增强?
-
-    train = train.transpose((0, 3, 1, 2))  # each sample => [n_samples, t, x, y]
-    validate = validate.transpose((0, 3, 1, 2))  # ...
-    test = test.transpose((0, 3, 1, 2))  # ...
-
-    # TODO: 改为使用dataloader
-    train_generator = iterate_minibatch(data=train, batch_size=args.batch_size, shuffle=True)
-    validate_generator = iterate_minibatch(data=validate, batch_size=1, shuffle=False)
-    test_generator = iterate_minibatch(data=test, batch_size=1, shuffle=False)
+    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=2)
+    val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1, shuffle=False, num_workers=2)
+    test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=2)
 
     # model, loss, optimizer
     rec_net = CRNN_MRI_UniDir()
@@ -186,7 +161,7 @@ if __name__ == '__main__':
     # training, validation & test
     for epoch in range(args.num_epoch):
         print(f'Epoch {epoch + 1}/{args.num_epoch}')
-        step_train(train_generator, rec_net, criterion, optimizer)
-        step_validate(validate_generator, rec_net, criterion)
+        step_train(train_loader, rec_net, criterion, optimizer)
+        step_validate(val_loader, rec_net, criterion)
         if (epoch + 1) % args.test_interval == 0:
-            step_test(test_generator, rec_net, criterion)
+            step_test(test_loader, rec_net, criterion)
