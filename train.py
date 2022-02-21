@@ -168,8 +168,8 @@ if __name__ == '__main__':
             test_batches += 1
 
             for im_i, und_i, pred_i in zip(im,
-                                           from_tensor_format(im_u.numpy()),
-                                           from_tensor_format(pred.data.cpu().numpy())):
+                                           from_tensor_format(im_u.cpu().numpy()),
+                                           from_tensor_format(pred.cpu().numpy())):
                 base_psnr += complex_psnr(im_i, und_i, peak='max')
                 test_psnr += complex_psnr(im_i, pred_i, peak='max')
 
