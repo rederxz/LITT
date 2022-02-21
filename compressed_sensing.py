@@ -1,5 +1,5 @@
 import numpy as np
-from . import mymath
+import mymath
 from numpy.lib.stride_tricks import as_strided
 
 
