@@ -108,7 +108,6 @@ if __name__ == '__main__':
     parser.add_argument('--test_interval', type=int, default=20, help='Epoch intervals to test')
     parser.add_argument('--work_dir', type=str, default='crnn', help='work directory')
     parser.add_argument('--debug', action='store_true', help='debug mode')
-    # parser.add_argument('--save_fig', action='store_true', help='Save output images and masks')  # TODO
     args = parser.parse_args()
 
     # aug = True
