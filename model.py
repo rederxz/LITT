@@ -84,9 +84,9 @@ class DataConsistencyInKspace(nn.Module):
             k0   = k0.permute(0, 4, 2, 3, 1)
             mask = mask.permute(0, 4, 2, 3, 1)
 
-        x = torch.view_as_complex(x)
+        x = torch.view_as_complex(x.contiguous())
         k = torch.fft.fft2(x, norm=self.normalized)
-        k = torch.view_as_real(k.contiguous())
+        k = torch.view_as_real(k)
         out = data_consistency(k, k0, mask, self.noise_lvl)
         out = torch.view_as_complex(out.contiguous())
         x_res = torch.fft.ifft2(out, norm=self.normalized)
