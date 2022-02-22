@@ -72,7 +72,7 @@ def step_test(dataloader, model, criterion):
         test_loss += loss.item()
         test_batches += 1
 
-        for img_i, img_u_i, pred_i in zip(img_gnd,
+        for img_i, img_u_i, pred_i in zip(from_tensor_format(img_gnd.cpu().numpy()),
                                           from_tensor_format(img_u.cpu().numpy()),
                                           from_tensor_format(pred.cpu().numpy())):
             base_psnr += complex_psnr(img_i, img_u_i, peak='max')

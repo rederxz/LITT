@@ -205,8 +205,7 @@ class LITT(torch.utils.data.dataset.Dataset):
         :param acc: accelerating rate
         :param sample_n: preserve how many center lines (sample_n // 2 each side)
         :param transform: transform applied to each sample
-        :return: if single_echo, each sample has shape [time, 2, x, y]; else [echos, time, 2, x, y]
-        'time' size is set to nt_network if specified
+        :return: each sample has shape [(echo,) 2, x, y, time], 'time' size is set to nt_network if specified
         """
         super(LITT, self).__init__()
         self.single_echo = single_echo
