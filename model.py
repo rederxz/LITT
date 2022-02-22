@@ -134,8 +134,53 @@ class UniCRNNlayer(nn.Module):
         return output
 
 
-class CRNN_MRI_UniDir(nn.Module):
-    def __init__(self, n_ch=2, nf=64, ks=3, nc=5, nd=5):
+class BCRNNlayer(nn.Module):
+    def __init__(self, input_size, hidden_size, kernel_size):
+        """
+        Bidirectional Convolutional RNN layer
+        :param input_size: channels of inputs
+        :param hidden_size: channels of hidden states
+        :param kernel_size: the kernel size of CNN
+        """
+        super(BCRNNlayer, self).__init__()
+        self.hidden_size = hidden_size
+        self.kernel_size = kernel_size
+        self.input_size = input_size
+        self.CRNN_model = CRNNcell(self.input_size, self.hidden_size, self.kernel_size)
+
+    def forward(self, input, input_iteration):
+        """
+        :param input: the input from the previous layer, [num_seqs, batch_size, channel, width, height]
+        :param input_iteration: the hidden state from the previous iteration, [num_seqs, batch_size, hidden_size, width, height]
+        :return: hidden state, [num_seqs, batch_size, hidden_size, width, height]
+        """
+        nt, nb, nc, nx, ny = input.shape
+        size_h = [nb, self.hidden_size, nx, ny]
+        hid_init = input.new_zeros(size_h)  # the initial zero-valued hidden state (the same device and dtype as input)
+
+        # forward
+        output_f = []
+        hidden = hid_init
+        for i in range(nt):  # past time frame
+            hidden = self.CRNN_model(input[i], input_iteration[i], hidden)
+            output_f.append(hidden[None, ...])
+        output_f = torch.cat(output_f, dim=0)
+
+        # backward
+        output_b = []
+        hidden = hid_init
+        for i in range(nt):  # future time frame
+            hidden = self.CRNN_model(input[nt - i - 1], input_iteration[nt - i - 1], hidden)
+            output_b.append(hidden[None, ...])
+        output_b = torch.cat(output_b[::-1], dim=0)
+
+        output = output_f + output_b
+
+        return output
+
+
+class CRNN(nn.Module):
+    def __init__(self, n_ch=2, nf=64, ks=3, nc=5, nd=5, unidirection=True):
         """
         Model for Dynamic MRI Reconstruction using Convolutional Neural Networks
         unidirectional version
@@ -145,13 +190,13 @@ class CRNN_MRI_UniDir(nn.Module):
         :param nc: number of iterations
         :param nd: number of CRNN/BCRNN/CNN layers in each iteration
         """
-        super(CRNN_MRI_UniDir, self).__init__()
+        super(CRNN, self).__init__()
         self.nc = nc
         self.nd = nd
         self.nf = nf
         self.ks = ks
 
-        self.unicrnn = UniCRNNlayer(n_ch, nf, ks)  # unidirectional
+        self.crnn_t = UniCRNNlayer(n_ch, nf, ks) if unidirection else BCRNNlayer(n_ch, nf, ks)
         self.conv1_x = nn.Conv2d(nf, nf, ks, padding=ks // 2)
         self.conv1_h = nn.Conv2d(nf, nf, ks, padding=ks // 2)
         self.conv2_x = nn.Conv2d(nf, nf, ks, padding=ks // 2)
@@ -186,10 +231,10 @@ class CRNN_MRI_UniDir(nn.Module):
         for i in range(1, self.nc + 1):  # i: number of iteration
             x = x.permute(4, 0, 1, 2, 3)  # [n_seq, batch, n_ch, width, height]
 
-            # 1 layer of uniCRNN-t-i
+            # 1 layer of CRNN-t-i
             net['t%d_x0' % (i - 1)] = net['t%d_x0' % (i - 1)] \
                 .view(n_seq, n_batch, self.nf, width, height)  # [n_seq, n_batch, self.nf, width, height]
-            net['t%d_x0' % i] = self.unicrnn(x, net['t%d_x0' % (i - 1)])
+            net['t%d_x0' % i] = self.crnn_t(x, net['t%d_x0' % (i - 1)])
             net['t%d_x0' % i] = net['t%d_x0' % i] \
                 .view(-1, self.nf, width, height)  # [n_seq * n_batch, self.nf, width, height]
 
@@ -220,7 +265,7 @@ class CRNN_MRI_UniDir(nn.Module):
 
     def forward_1by1(self, x, k, m, h):
         """
-        perform predict one by one, helped by the hidden state of the previous frame
+        perform prediction one by one, helped by the hidden state of the previous frame
         equivalent to doing forward with T=1 and initial CRNN-i hidden state given
         :param x: input in image domain, [batch_size, 2, width, height, 1]
         :param k: initially sampled elements in k-space, [batch_size, 2, width, height, 1]
@@ -241,10 +286,10 @@ class CRNN_MRI_UniDir(nn.Module):
         for i in range(1, self.nc + 1):  # i: number of iteration
             x = x.permute(4, 0, 1, 2, 3)  # [n_seq, batch, n_ch, width, height]
 
-            # 1 layer of uniCRNN-t-i
+            # 1 layer of CRNN-t-i
             net['t%d_x0' % (i - 1)] = net['t%d_x0' % (i - 1)] \
                 .view(n_seq, n_batch, self.nf, width, height)  # [n_seq, n_batch, self.nf, width, height]
-            net['t%d_x0' % i] = self.unicrnn.CRNN_model(x, net['t%d_x0' % (i - 1)], h)  # directly call the CRNN cell
+            net['t%d_x0' % i] = self.crnn_t.CRNN_model(x, net['t%d_x0' % (i - 1)], h)  # directly call the CRNN cell
             net['t%d_x0' % i] = net['t%d_x0' % i] \
                 .view(-1, self.nf, width, height)  # [n_seq * n_batch, self.nf, width, height]
 
