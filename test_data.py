@@ -7,7 +7,6 @@ import compressed_sensing as cs
 from utils import to_tensor_format
 
 
-
 # using pytorch dataset
 train_dataset = get_LITT_dataset(data_root='../LITT_data/', split='test', nt_network=6,
                                  single_echo=True, acc=6.0, sample_n=8,
@@ -58,16 +57,16 @@ def prep_input(im, **kwargs):
     return im_und_l, k_und_l, mask_l, im_gnd_l
 
 
-# data = load_data_v2('../LITT_data/', 'test', nt_network=6)
-# data = data.transpose((0, 3, 1, 2))
-# for im in iterate_minibatch(data=data, batch_size=1, shuffle=False):
-#     im_u, k_u, mask, gnd = prep_input(im, acc=6.0, sample_n=8)
-#     group = [im_u.numpy()[0], k_u.numpy()[0], mask.numpy()[0], gnd.numpy()[0]]
-#     for item in group:
-#         print(item.shape)
-#         amplitude = np.sqrt(item[0] ** 2 + item[1] ** 2)
-#         fig, axs = plt.subplots(2, 3)
-#         for i, ax in enumerate(axs.ravel()):
-#             ax.imshow(amplitude[..., i])
-#         plt.show()
-#         break
+data = load_data_v2('../LITT_data/', 'test', nt_network=6)
+data = data.transpose((0, 3, 1, 2))
+for im in iterate_minibatch(data=data, batch_size=1, shuffle=False):
+    im_u, k_u, mask, gnd = prep_input(im, acc=6.0, sample_n=8)
+    group = [im_u.numpy()[0], k_u.numpy()[0], mask.numpy()[0], gnd.numpy()[0]]
+    for item in group:
+        print(item.shape)
+        amplitude = np.sqrt(item[0] ** 2 + item[1] ** 2)
+        fig, axs = plt.subplots(2, 3)
+        for i, ax in enumerate(axs.ravel()):
+            ax.imshow(amplitude[..., i])
+        plt.show()
+        break
