@@ -3,6 +3,7 @@ import os
 import time
 
 import torch
+import scipy.io as sio
 
 from data import get_LITT_dataset
 from metric import complex_psnr
@@ -56,7 +57,7 @@ def step_val(dataloader, model, criterion):
           + ' - ' + f'loss: {val_loss}')
 
 
-def step_test(dataloader, model, criterion):
+def step_test(dataloader, model, criterion, work_dir):
     test_loss = 0
     base_psnr = 0
     test_psnr = 0
@@ -87,7 +88,12 @@ def step_test(dataloader, model, criterion):
           + ', ' + f'test PSNR: {test_psnr}')
 
     # save model
-    torch.save(rec_net.state_dict(), os.path.join(args.work_dir, f'model.pth'))
+    torch.save(rec_net.state_dict(), os.path.join(work_dir, 'model.pth'))
+
+    # save image
+    sio.savemat(os.path.join(work_dir, 'figure.mat'), {'img_gnd': img_gnd.cpu().numpy(),
+                                                       'img_u': img_u.cpu().numpy(),
+                                                       'img_rec': pred.cpu().numpy()})
 
 
 if __name__ == '__main__':
@@ -144,4 +150,4 @@ if __name__ == '__main__':
         step_train(train_loader, rec_net, criterion, optimizer)
         step_val(val_loader, rec_net, criterion)
         if (epoch + 1) % args.test_interval == 0:
-            step_test(test_loader, rec_net, criterion)
+            step_test(test_loader, rec_net, criterion, args.work_dir)
