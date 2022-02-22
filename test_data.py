@@ -11,10 +11,16 @@ from utils import to_tensor_format
 train_dataset = get_LITT_dataset(data_root='../LITT_data/', split='test', nt_network=6,
                                  single_echo=True, acc=6.0, sample_n=8,
                                  transform=None)
-for img in train_dataset[0].values():
+for key, img in train_dataset[0].items():
+    print(key)
     img = img.numpy()
     print(img.shape)
+    print(np.min(img))
+    print(np.max(img))
     amplitude = np.sqrt(img[0] ** 2 + img[1] ** 2)
+    print(np.min(amplitude))
+    print(np.max(amplitude))
+    print()
     fig, axs = plt.subplots(2, 3)
     for i, ax in enumerate(axs.ravel()):
         ax.imshow(amplitude[..., i])
