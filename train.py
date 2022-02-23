@@ -1,6 +1,7 @@
 import argparse
 import os
 import time
+import subprocess
 
 import torch
 import scipy.io as sio
@@ -111,6 +112,14 @@ if __name__ == '__main__':
     parser.add_argument('--work_dir', type=str, default='crnn', help='work directory')
     parser.add_argument('--debug', action='store_true', help='debug mode')
     args = parser.parse_args()
+
+    # print config
+    print('Commit ID:')
+    command = 'cd LITT && git rev-parse --short HEAD  && cd ..' if os.path.split(os.getcwd())[-1] != 'LITT' \
+        else 'git rev-parse --short HEAD'
+    print(subprocess.getoutput(command))
+    print('Params:')
+    print(vars(args))
 
     # create work directory
     if not os.path.exists(args.work_dir):
