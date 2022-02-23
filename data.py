@@ -190,7 +190,8 @@ def load_data_v2(data_path, split, nt_network=None, single_echo=True):
 
 
 class LITT(torch.utils.data.dataset.Dataset):
-    def __init__(self, mat_file_path, nt_network=None, single_echo=True, acc=6.0, sample_n=8, transform=None):
+    def __init__(self, mat_file_path, nt_network=None, single_echo=True, acc=6.0, sample_n=8,
+                 mask=None, overlap=False, transform=None):
         """
         build a LITT dataset
         :param mat_file_path: a list, the paths of mat files
@@ -198,6 +199,8 @@ class LITT(torch.utils.data.dataset.Dataset):
         :param single_echo: if only use one echo
         :param acc: accelerating rate
         :param sample_n: preserve how many center lines (sample_n // 2 each side)
+        :param mask: a given mask with shape [..., x, y]
+        :param overlap: if samples overlap with each other along time dimension
         :param transform: transform applied to each sample, need to keep shape [..., x, y, time]
         :return: each sample has shape [(echo,) 2, x, y, time], 'time' size is set to nt_network if specified
         """
@@ -206,6 +209,7 @@ class LITT(torch.utils.data.dataset.Dataset):
         self.acc = acc
         self.sample_n = sample_n
         self.transform = transform
+        self.mask = mask
 
         self.data = list()
         for file_path in mat_file_path:
@@ -221,13 +225,16 @@ class LITT(torch.utils.data.dataset.Dataset):
 
             if nt_network is None:
                 self.data.append(mFFE_img_complex)
-            else:  # slice the data along time dim according to nt_network
+            elif not overlap:  # slice the data along time dim according to nt_network with no overlapping
                 total_t = mFFE_img_complex.shape[-1]
                 complete_slice = total_t // nt_network
                 for i in range(complete_slice):
                     self.data.append(mFFE_img_complex[..., i * nt_network:(i + 1) * nt_network])
                 if total_t % nt_network > 0:
                     self.data.append(mFFE_img_complex[..., -nt_network:])
+            else:  # ... with overlapping
+                for i in range(mFFE_img_complex.shape[-1] - (nt_network - 2)):
+                    self.data.append(mFFE_img_complex[..., i:i + nt_network])
 
     def __getitem__(self, idx):
         img_gnd = self.data[idx]  # [(echo, )x, y, time]
@@ -237,7 +244,10 @@ class LITT(torch.utils.data.dataset.Dataset):
 
         # note: mask generation and under-sampling require img with shape [..., x, y]
         img_gnd = np.transpose(img_gnd, (2, 0, 1)) if self.single_echo else np.transpose(img_gnd, (0, 3, 1, 2))
-        mask = cs.cartesian_mask(img_gnd.shape, acc=self.acc, sample_n=self.sample_n)
+        if self.mask is not None:
+            mask = self.mask
+        else:
+            mask = cs.cartesian_mask(img_gnd.shape, acc=self.acc, sample_n=self.sample_n)
         img_u, k_u = cs.undersample(img_gnd, mask)
 
         # complex64 -> float32, [(echo, )time, x, y] -> [(echo, )time, x, y, 2] -> [(echo,) 2, x, y, time]
