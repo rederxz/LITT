@@ -8,11 +8,11 @@ import compressed_sensing as cs
 from utils import to_tensor_format
 
 
-def cut_data(input, block_size, cut_edge=None):
+def cut_data(input, block_size=(1, 1), cut_edge=None):
     """
-    cut the images by specified block_size
+    make sure input is divisible by the block size and cut edge area
     :param input: with shape [n_samples, echo, x, y, nt]
-    :param block_size: [256, 32]
+    :param block_size: [int, int], such as [256, 32]
     :param cut_edge: [0, 32]
     :return:
     """
@@ -21,22 +21,25 @@ def cut_data(input, block_size, cut_edge=None):
             input = input[..., cut_edge[0]:-cut_edge[0], :, :]
         if cut_edge[1] != 0:
             input = input[..., :, cut_edge[1]:-cut_edge[1], :]
-    ip_shape = input.shape  # [n_samples, echo, 256, 256 - 32 * 2 == 192, nt]
 
-    dim = len(block_size)
-    ncut = [None] * dim
-    ncut_half = [None] * dim
-    ncut_half_2 = [None] * dim
+    # make sure x dim divisible
+    start_x, end_x = 0, None
+    assert input.shape[-3] >= block_size[0]
+    remainder = input.shape[-3] % block_size[0]
+    if remainder > 0:
+        start_x += remainder // 2
+        end_x = - (remainder - remainder // 2)
 
-    for ndim in range(dim):  # 0
-        ncut[ndim] = ip_shape[ndim + 2] % block_size[ndim]  # 64
-        ncut_half[ndim] = round(ncut[ndim] / 2)  # 32
-        ncut_half_2[ndim] = ncut[ndim] - ncut_half[ndim]  # 32
-        if ncut[ndim] == 0:  # 正好是整数倍
-            ncut_half[ndim] = 0
-            ncut_half_2[ndim] = -ip_shape[ndim + 2]
+    # make sure y dim divisible
+    start_y, end_y = 0, None
+    assert input.shape[-2] >= block_size[1]
+    remainder = input.shape[-2] % block_size[1]
+    if remainder > 0:
+        start_y += remainder // 2
+        end_y = - (remainder - remainder // 2)
 
-    input_p = input[:, :, ncut_half[0]:-ncut_half_2[0], ncut_half[1]:-ncut_half_2[1], :]
+    input_p = input[..., start_x:end_x, start_y:end_y, :]
+
     return input_p
 
 
@@ -44,7 +47,7 @@ def data_aug(img, block_size=None, rotation_xy=False, flip_t=False):
     """
     apply data augmentation to a batch
     :param img: [n, x, y, nt] or [n, echo, x, y, nt]
-    :param block_size: [256, 32]
+    :param block_size: [int, int]
     :param rotation_xy: boolean
     :param flip_t: boolean
     :return:
@@ -56,24 +59,14 @@ def data_aug(img, block_size=None, rotation_xy=False, flip_t=False):
         img = img[..., ::-1]
 
     if block_size is not None:
-        pass
+        assert img.shape[-3] >= block_size[0] and img.shape[-2] >= block_size[1]
 
-    if block_size is not None:
-        # img_pad = pad_data(img,block_size)
-        img_pad = cut_data(img, block_size, cut_edge=(0, 32))
-        img_shape = img_pad.shape  # [n_samples, echo, x, y, nt]
-        n_x = int(img_shape[2] / block_size[0])
-        n_y = int(img_shape[3] / block_size[1])
-        img_block = []
-        for i in range(n_x):
-            for j in range(n_y):
-                img_block.append(img_pad[:, :, i * block_size[0]:(i + 1) * block_size[0],
-                                 j * block_size[1]:(j + 1) * block_size[1], :])
-        img_block = np.array(img_block)
-        sp = img_block.shape
-        img = np.reshape(img_block, newshape=(sp[0] * sp[1], sp[2], sp[3], sp[4], sp[5]))
+        # cut unimportant edge area
+        img = cut_data(img, cut_edge=(0, 32))
 
-    print(img.shape)
+        start_x = np.random.randint(0, img.shape[-3] - block_size[0] + 1)
+        start_y = np.random.randint(0, img.shape[-2] - block_size[1] + 1)
+        img = img[..., start_x: start_x + block_size[0], start_y: start_y + block_size[1], :]
 
     return img
 
