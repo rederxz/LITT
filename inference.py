@@ -57,7 +57,7 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', type=int, default=1, help='batch size')
     parser.add_argument('--acc', type=float, default=6.0, help='Acceleration factor for k-space sampling')
     parser.add_argument('--sampled_lines', type=int, default=8, help='Number of sampled lines at k-space center')
-    parser.add_argument('--mask_path', type=str, default='./crnn/mask.mat', help='the path of the specified mask')
+    parser.add_argument('--mask_path', type=str, default=None, help='the path of the specified mask')
     parser.add_argument('--nt_network', type=int, default=6, help='Time frames involved in the network.')
     parser.add_argument('--fig_interval', type=int, default=10, help='Frame intervals to save figs.')
     parser.add_argument('--work_dir', type=str, default='crnn', help='work directory')
@@ -69,7 +69,7 @@ if __name__ == '__main__':
         os.mkdir(args.work_dir)
 
     # data, each sample [n_samples(, echo), t, x, y]
-    mask = sio.loadmat(args.mask_path)
+    mask = sio.loadmat(args.mask_path) if args.mask_path is not None else None
     test_dataset = get_LITT_dataset(data_root=args.data_path, split='test', nt_network=args.nt_network,
                                     single_echo=True, acc=args.acc, sample_n=args.sampled_lines,
                                     mask=mask, overlap=True)
