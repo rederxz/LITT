@@ -233,7 +233,7 @@ class LITT(torch.utils.data.dataset.Dataset):
                 if total_t % nt_network > 0:
                     self.data.append(mFFE_img_complex[..., -nt_network:])
             else:  # ... with overlapping
-                for i in range(mFFE_img_complex.shape[-1] - (nt_network - 2)):
+                for i in range(mFFE_img_complex.shape[-1] - (nt_network - 1)):
                     self.data.append(mFFE_img_complex[..., i:i + nt_network])
 
     def __getitem__(self, idx):
