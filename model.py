@@ -158,6 +158,7 @@ class CRNN(nn.Module):
         :param nd: number of CRNN/BCRNN/CNN layers in each iteration
         """
         super(CRNN, self).__init__()
+        self.n_ch = n_ch
         self.nc = nc
         self.nd = nd
         self.nf = nf
@@ -259,13 +260,13 @@ class CRNN(nn.Module):
         # hidden preserved for the next frame
         hidden_preserved = {}
 
+        # for convenience
+        x = x.view(-1, self.n_ch, width, height)  # [1 * batch, n_ch, width, height]
+        k = k.view(-1, self.n_ch, width, height)  # [1 * batch, n_ch, width, height]
+        m = m.view(-1, self.n_ch, width, height)  # [1 * batch, n_ch, width, height]
+
         # iterate
         for i in range(1, self.nc + 1):  # i: number of iteration
-            x = x.permute(4, 0, 1, 2, 3)  # [1, batch, n_ch, width, height]
-
-            net['t%d_x0' % (i - 1)] = net['t%d_x0' % (i - 1)] \
-                .view(-1, self.nf, width, height)  # [1 * n_batch, self.nf, width, height]
-
             # directly call the CRNN cell
             net['t%d_x0' % i] = self.crnn_t_i.CRNN_model(x, net['t%d_x0' % (i - 1)],
                                                          hid_init if h is None else h['t%d_x0' % i])
@@ -280,10 +281,8 @@ class CRNN(nn.Module):
             net['t%d_x4' % i] = self.conv4_x(net['t%d_x3' % i])
 
             # shortcut connection
-            net['t%d_out' % i] = x + net['t%d_x4' % i].view(n_seq, n_batch, self.nf, width, height)
-
-            net['t%d_out' % i] = net['t%d_out' % i].permute(1, 2, 3, 4, 0)  # (batch_size, n_ch, width, height, 1)
+            net['t%d_out' % i] = x + net['t%d_x4' % i]
 
             x = self.dcs[i - 1].perform(net['t%d_out' % i], k, m)  # data consistency layer
 
-        return x, hidden_preserved
+        return x[..., None], hidden_preserved
