@@ -31,18 +31,18 @@ def step_test(dataloader, model, work_dir, fig_interval):
         img_rec_all.append(from_tensor_format(img_rec[..., -1].cpu().numpy()).squeeze())
         t_rec_all.append(tok - tik)
 
-        if (i + 1) % fig_interval == 0:
+        if (i + 1) % fig_interval == 0:  # TODO 是否必要？
             # amp diff
             im1 = abs(img_gnd_all[i]) - abs(img_rec_all[i])
             im2 = abs(np.concatenate([img_u_all[i], img_rec_all[i], img_gnd_all[i]], 1))
             im = np.concatenate([im2, 2 * abs(im1)], 1)
-            plt.imsave(os.path.join(work_dir, f'im{i}_x.png'), im, cmap='gray')
+            plt.imsave(os.path.join(work_dir, f'im{i + 1}_x.png'), im, cmap='gray')
 
             # complex phase_diff
             im1 = np.angle(img_gnd_all[i] * np.conj(img_rec_all[i]))
             im2 = np.angle(np.concatenate([img_u_all[i], img_rec_all[i], img_gnd_all[i]], 1))
             im = np.concatenate([im2, 2 * im1], 1)
-            plt.imsave(os.path.join(work_dir, f'im{i}_angle_x.png'), im, cmap='gray')
+            plt.imsave(os.path.join(work_dir, f'im{i + 1}_angle_x.png'), im, cmap='gray')
 
     # save result, [t, x, y] complex images
     sio.savemat(os.path.join(work_dir, 'test_result.mat'),
@@ -57,6 +57,7 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', type=int, default=1, help='batch size')
     parser.add_argument('--acc', type=float, default=6.0, help='Acceleration factor for k-space sampling')
     parser.add_argument('--sampled_lines', type=int, default=8, help='Number of sampled lines at k-space center')
+    parser.add_argument('--uni_direction', action='store_true', help='Bidirectional or unidirectional network')
     parser.add_argument('--mask_path', type=str, default=None, help='the path of the specified mask')
     parser.add_argument('--nt_network', type=int, default=6, help='Time frames involved in the network.')
     parser.add_argument('--fig_interval', type=int, default=10, help='Frame intervals to save figs.')
@@ -76,7 +77,7 @@ if __name__ == '__main__':
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=2)
 
     # model
-    rec_net = CRNN()
+    rec_net = CRNN(uni_direction=args.uni_direction)
     rec_net.load_state_dict(torch.load(args.model_path))
 
     # device
