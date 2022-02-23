@@ -198,7 +198,7 @@ class LITT(torch.utils.data.dataset.Dataset):
         :param single_echo: if only use one echo
         :param acc: accelerating rate
         :param sample_n: preserve how many center lines (sample_n // 2 each side)
-        :param transform: transform applied to each sample
+        :param transform: transform applied to each sample, need to keep shape [..., x, y, time]
         :return: each sample has shape [(echo,) 2, x, y, time], 'time' size is set to nt_network if specified
         """
         super(LITT, self).__init__()
@@ -214,7 +214,7 @@ class LITT(torch.utils.data.dataset.Dataset):
             mFFE_img_real = mat_data['mFFE_img_real']
             mFFE_img_complex = mFFE_img_real + 1j * mFFE_img_imag  # [x, y, time, echo]
             mFFE_img_complex = np.transpose(
-                mFFE_img_complex, (3, 2, 0, 1))  # -> [echo, time, x, y] to adapt to following precessing in __getitem__
+                mFFE_img_complex, (3, 0, 1, 2))  # -> [echo, x, y, time] to adapt to following processing in __getitem__
 
             if single_echo:
                 mFFE_img_complex = mFFE_img_complex[0]  # TODO: if single echo, use the 1st one
@@ -222,20 +222,21 @@ class LITT(torch.utils.data.dataset.Dataset):
             if nt_network is None:
                 self.data.append(mFFE_img_complex)
             else:  # slice the data along time dim according to nt_network
-                total_t = mFFE_img_complex.shape[-3]
+                total_t = mFFE_img_complex.shape[-1]
                 complete_slice = total_t // nt_network
                 for i in range(complete_slice):
-                    self.data.append(mFFE_img_complex[..., i * nt_network:(i + 1) * nt_network, :, :])
+                    self.data.append(mFFE_img_complex[..., i * nt_network:(i + 1) * nt_network])
                 if total_t % nt_network > 0:
-                    self.data.append(mFFE_img_complex[..., -nt_network:, :, :])
+                    self.data.append(mFFE_img_complex[..., -nt_network:])
 
     def __getitem__(self, idx):
-        img_gnd = self.data[idx]  # [(echo, )time, x, y]
+        img_gnd = self.data[idx]  # [(echo, )x, y, time]
 
         if self.transform is not None:
             img_gnd = self.transform(img_gnd)
 
         # note: mask generation and under-sampling require img with shape [..., x, y]
+        img_gnd = np.transpose(img_gnd, (2, 0, 1)) if self.single_echo else np.transpose(img_gnd, (0, 3, 1, 2))
         mask = cs.cartesian_mask(img_gnd.shape, acc=self.acc, sample_n=self.sample_n)
         img_u, k_u = cs.undersample(img_gnd, mask)
 
