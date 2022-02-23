@@ -5,9 +5,9 @@ import time
 import torch
 import scipy.io as sio
 
-from data import get_LITT_dataset
+from data import get_LITT_dataset, data_aug
 from metric import complex_psnr
-from model import CRNN_MRI_UniDir
+from model import CRNN
 from utils import from_tensor_format
 
 
@@ -110,17 +110,13 @@ if __name__ == '__main__':
     parser.add_argument('--debug', action='store_true', help='debug mode')
     args = parser.parse_args()
 
-    # aug = True
-    # block_size = [256, 32]
-    # rotation_xy = False
-    # flip_t = False
-
     # create work directory
     if not os.path.exists(args.work_dir):
         os.mkdir(args.work_dir)
 
     # data, each sample [n_samples(, echo), t, x, y]
-    train_transform = None  # TODO: 数据预处理与数据增强
+    train_transform = data_aug(block_size=(256, 32), rotation_xy=False, flip_t=False)
+
     train_dataset = get_LITT_dataset(data_root=args.data_path, split='train', nt_network=args.nt_network,
                                      single_echo=True, acc=args.acc, sample_n=args.sampled_lines,
                                      transform=train_transform)
@@ -134,7 +130,7 @@ if __name__ == '__main__':
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=2)
 
     # model, loss, optimizer
-    rec_net = CRNN_MRI_UniDir()
+    rec_net = CRNN()
     criterion = torch.nn.MSELoss()
     optimizer = torch.optim.Adam(rec_net.parameters(), lr=args.lr, betas=(0.5, 0.999))
 
