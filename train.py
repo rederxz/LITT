@@ -62,6 +62,7 @@ def step_test(dataloader, model, criterion, work_dir):
     base_psnr = 0
     test_psnr = 0
     test_batches = 0
+    model.eval()
     for batch in dataloader:
         with torch.no_grad():
             img_u, k_u, mask, img_gnd = batch['img_u'], batch['k_u'], batch['mask'], batch['img_gnd']
@@ -104,6 +105,7 @@ if __name__ == '__main__':
     parser.add_argument('--lr', type=float, default=0.0001, help='initial learning rate')
     parser.add_argument('--acc', type=float, default=6.0, help='Acceleration factor for k-space sampling')
     parser.add_argument('--sampled_lines', type=int, default=8, help='Number of sampled lines at k-space center')
+    parser.add_argument('--uni_direction', action='store_true', help='Bidirectional or unidirectional network')
     parser.add_argument('--nt_network', type=int, default=6, help='Time frames involved in the network.')
     parser.add_argument('--test_interval', type=int, default=20, help='Epoch intervals to test')
     parser.add_argument('--work_dir', type=str, default='crnn', help='work directory')
@@ -130,7 +132,7 @@ if __name__ == '__main__':
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=2)
 
     # model, loss, optimizer
-    rec_net = CRNN()
+    rec_net = CRNN(uni_direction=args.uni_direction)
     criterion = torch.nn.MSELoss()
     optimizer = torch.optim.Adam(rec_net.parameters(), lr=args.lr, betas=(0.5, 0.999))
 
