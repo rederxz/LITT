@@ -78,109 +78,76 @@ class CRNNcell(nn.Module):
         self.kernel_size = kernel_size
         # image2hidden conv
         self.i2h = nn.Conv2d(input_size, hidden_size, kernel_size, padding=self.kernel_size // 2)
-        # hidden2hidden conv
-        self.h2h = nn.Conv2d(hidden_size, hidden_size, kernel_size, padding=self.kernel_size // 2)
         # hidden(from the previous iter)2hidden conv
+        self.h2h = nn.Conv2d(hidden_size, hidden_size, kernel_size, padding=self.kernel_size // 2)
+        # hidden(from the neighbour frame)2hidden conv
         self.ih2ih = nn.Conv2d(hidden_size, hidden_size, kernel_size, padding=self.kernel_size // 2)
         self.relu = nn.ReLU(inplace=True)
 
-    def forward(self, input, hidden_iteration, hidden):
+    def forward(self, input, hidden_i, hidden_t):
         """
         :param input: the input from the previous layer
-        :param hidden_iteration: the hidden states of the previous iteration
-        :param hidden: the hidden states of the previous frame or the next frame
+        :param hidden_i: the hidden states of the previous iteration
+        :param hidden_t: the hidden states of the previous frame or the next frame
         :return: hidden state with shape [batch_size, hidden_size, width, height]
         """
         in_to_hid = self.i2h(input)
-        ih_to_ih = self.ih2ih(hidden_iteration)
-        hid_to_hid = self.h2h(hidden)
+        ih_to_ih = self.ih2ih(hidden_i)
+        hid_to_hid = self.h2h(hidden_t)
         hidden_out = self.relu(in_to_hid + hid_to_hid + ih_to_ih)
 
         return hidden_out
 
 
-class UniCRNNlayer(nn.Module):
-    def __init__(self, input_size, hidden_size, kernel_size):
+class CRNN_t_i(nn.Module):
+    def __init__(self, input_size, hidden_size, kernel_size, uni_direction=False):
         """
-        Unidirectional Convolutional RNN layer (only forward direction)
+        Recurrent Convolutional RNN layer over iterations and time
         :param input_size: channels of inputs
         :param hidden_size: channels of hidden states
         :param kernel_size: the kernel size of CNN
+        :param uni_direction: ...
         """
-        super(UniCRNNlayer, self).__init__()
+        super(CRNN_t_i, self).__init__()
         self.hidden_size = hidden_size
         self.kernel_size = kernel_size
         self.input_size = input_size
+        self.uni_direction = uni_direction
         self.CRNN_model = CRNNcell(self.input_size, self.hidden_size, self.kernel_size)
 
-    def forward(self, input, input_iteration):
+    def forward(self, input, hidden_i):
         """
         :param input: the input from the previous layer, [num_seqs, batch_size, channel, width, height]
-        :param input_iteration: the hidden state from the previous iteration, [num_seqs, batch_size, hidden_size, width, height]
+        :param hidden_i: the hidden state from the previous iteration, [num_seqs, batch_size, hidden_size, width, height]
         :return: hidden state, [num_seqs, batch_size, hidden_size, width, height]
         """
         nt, nb, nc, nx, ny = input.shape
         size_h = [nb, self.hidden_size, nx, ny]
-        hid_init = input.new_zeros(size_h)  # the initial zero-valued hidden state (the same device and dtype as input)
+        hid_init = input.new_zeros(size_h)
 
         # forward
-        output_f = []
+        output = []
         hidden = hid_init
         for i in range(nt):  # past time frame
-            hidden = self.CRNN_model(input[i], input_iteration[i], hidden)
-            output_f.append(hidden[None, ...])
-        output = torch.cat(output_f, dim=0)
+            hidden = self.CRNN_model(input[i], hidden_i[i], hidden)
+            output.append(hidden[None, ...])
+        output = torch.cat(output, dim=0)
 
-        return output
-
-
-class BCRNNlayer(nn.Module):
-    def __init__(self, input_size, hidden_size, kernel_size):
-        """
-        Bidirectional Convolutional RNN layer
-        :param input_size: channels of inputs
-        :param hidden_size: channels of hidden states
-        :param kernel_size: the kernel size of CNN
-        """
-        super(BCRNNlayer, self).__init__()
-        self.hidden_size = hidden_size
-        self.kernel_size = kernel_size
-        self.input_size = input_size
-        self.CRNN_model = CRNNcell(self.input_size, self.hidden_size, self.kernel_size)
-
-    def forward(self, input, input_iteration):
-        """
-        :param input: the input from the previous layer, [num_seqs, batch_size, channel, width, height]
-        :param input_iteration: the hidden state from the previous iteration, [num_seqs, batch_size, hidden_size, width, height]
-        :return: hidden state, [num_seqs, batch_size, hidden_size, width, height]
-        """
-        nt, nb, nc, nx, ny = input.shape
-        size_h = [nb, self.hidden_size, nx, ny]
-        hid_init = input.new_zeros(size_h)  # the initial zero-valued hidden state (the same device and dtype as input)
-
-        # forward
-        output_f = []
-        hidden = hid_init
-        for i in range(nt):  # past time frame
-            hidden = self.CRNN_model(input[i], input_iteration[i], hidden)
-            output_f.append(hidden[None, ...])
-        output_f = torch.cat(output_f, dim=0)
-
-        # backward
-        output_b = []
-        hidden = hid_init
-        for i in range(nt):  # future time frame
-            hidden = self.CRNN_model(input[nt - i - 1], input_iteration[nt - i - 1], hidden)
-            output_b.append(hidden[None, ...])
-        output_b = torch.cat(output_b[::-1], dim=0)
-
-        output = output_f + output_b
+        if not self.uni_direction:
+            # backward
+            output_b = []
+            hidden = hid_init
+            for i in range(nt):  # future time frame
+                hidden = self.CRNN_model(input[nt - i - 1], hidden_i[nt - i - 1], hidden)
+                output_b.append(hidden[None, ...])
+            output_b = torch.cat(output_b[::-1], dim=0)
+            output = output + output_b
 
         return output
 
 
 class CRNN(nn.Module):
-    def __init__(self, n_ch=2, nf=64, ks=3, nc=5, nd=5, unidirection=True):
+    def __init__(self, n_ch=2, nf=64, ks=3, nc=5, nd=5, uni_direction=False):
         """
         Model for Dynamic MRI Reconstruction using Convolutional Neural Networks
         unidirectional version
@@ -195,8 +162,9 @@ class CRNN(nn.Module):
         self.nd = nd
         self.nf = nf
         self.ks = ks
+        self.uni_direction = uni_direction
 
-        self.crnn_t = UniCRNNlayer(n_ch, nf, ks) if unidirection else BCRNNlayer(n_ch, nf, ks)
+        self.crnn_t_i = CRNN_t_i(n_ch, nf, ks, uni_direction)
         self.conv1_x = nn.Conv2d(nf, nf, ks, padding=ks // 2)
         self.conv1_h = nn.Conv2d(nf, nf, ks, padding=ks // 2)
         self.conv2_x = nn.Conv2d(nf, nf, ks, padding=ks // 2)
@@ -231,12 +199,14 @@ class CRNN(nn.Module):
         for i in range(1, self.nc + 1):  # i: number of iteration
             x = x.permute(4, 0, 1, 2, 3)  # [n_seq, batch, n_ch, width, height]
 
-            # 1 layer of CRNN-t-i
             net['t%d_x0' % (i - 1)] = net['t%d_x0' % (i - 1)] \
-                .view(n_seq, n_batch, self.nf, width, height)  # [n_seq, n_batch, self.nf, width, height]
-            net['t%d_x0' % i] = self.crnn_t(x, net['t%d_x0' % (i - 1)])
+                .view(n_seq, n_batch, self.nf, width, height)  # [n_seq, n_batch, self.nf, width, height] as required by CRNN_t_i
+
+            # 1 layer of CRNN-t-i
+            net['t%d_x0' % i] = self.crnn_t_i(x, net['t%d_x0' % (i - 1)])
+
             net['t%d_x0' % i] = net['t%d_x0' % i] \
-                .view(-1, self.nf, width, height)  # [n_seq * n_batch, self.nf, width, height]
+                .view(-1, self.nf, width, height)  # [n_seq * n_batch, self.nf, width, height] as required by following CNN layers
 
             # 3 layers of CRNN-i
             net['t%d_x1' % i] = self.relu(self.conv1_x(net['t%d_x0' % i]) + self.conv1_h(net['t%d_x1' % (i - 1)]))
@@ -247,8 +217,7 @@ class CRNN(nn.Module):
             net['t%d_x4' % i] = self.conv4_x(net['t%d_x3' % i])
 
             # shortcut connection
-            net['t%d_out' % i] = x + net['t%d_x4' % i] \
-                .view(n_seq, n_batch, n_ch, width, height)
+            net['t%d_out' % i] = x + net['t%d_x4' % i].view(n_seq, n_batch, n_ch, width, height)
 
             net['t%d_out' % i] = net['t%d_out' % i].permute(1, 2, 3, 4, 0)  # (batch_size, n_ch, width, height, n_seq)
 
@@ -267,12 +236,17 @@ class CRNN(nn.Module):
         """
         perform prediction one by one, helped by the hidden state of the previous frame
         equivalent to doing forward with T=1 and initial CRNN-i hidden state given
+        **only meaningful when unidirectional**
         :param x: input in image domain, [batch_size, 2, width, height, 1]
         :param k: initially sampled elements in k-space, [batch_size, 2, width, height, 1]
         :param m: corresponding nonzero location, [batch_size, 2, width, height, 1]
-        :param h: hidden states over each iteration of the previous frame
+        :param h: a dict, contains hidden states over each iteration of the previous frame, each value
+        has shape [batch_size, hidden_size, width, height]
         :return: reconstruction result, [batch_size, 2, width, height, 1]
+                hidden states, a dict, each value has shape [batch_size, hidden_size, width, height]
         """
+        assert self.uni_direction and x.shape[-1] == 1
+
         net = {}
         n_batch, n_ch, width, height, n_seq = x.size()
         size_h = [n_seq * n_batch, self.nf, width, height]
@@ -282,16 +256,20 @@ class CRNN(nn.Module):
         for j in range(self.nd - 1):  # except for the last vanilla CNN layer, all layers maintain a hidden state
             net['t0_x%d' % j] = hid_init  # 't' means iteration, 'x' means layers
 
+        # hidden preserved for the next frame
+        hidden_preserved = {}
+
         # iterate
         for i in range(1, self.nc + 1):  # i: number of iteration
-            x = x.permute(4, 0, 1, 2, 3)  # [n_seq, batch, n_ch, width, height]
+            x = x.permute(4, 0, 1, 2, 3)  # [1, batch, n_ch, width, height]
+
+            net['t%d_x0' % (i - 1)] = net['t%d_x0' % (i - 1)] \
+                .view(-1, self.nf, width, height)  # [1 * n_batch, self.nf, width, height]
 
             # 1 layer of CRNN-t-i
-            net['t%d_x0' % (i - 1)] = net['t%d_x0' % (i - 1)] \
-                .view(n_seq, n_batch, self.nf, width, height)  # [n_seq, n_batch, self.nf, width, height]
-            net['t%d_x0' % i] = self.crnn_t.CRNN_model(x, net['t%d_x0' % (i - 1)], h)  # directly call the CRNN cell
-            net['t%d_x0' % i] = net['t%d_x0' % i] \
-                .view(-1, self.nf, width, height)  # [n_seq * n_batch, self.nf, width, height]
+            net['t%d_x0' % i] = self.crnn_t_i.CRNN_model(x, net['t%d_x0' % (i - 1)],
+                                                         h['t%d_x0' % i])  # directly call the CRNN cell
+            hidden_preserved['t%d_x0' % i] = net['t%d_x0' % i]  # preserve hidden of current frame
 
             # 3 layers of CRNN-i
             net['t%d_x1' % i] = self.relu(self.conv1_x(net['t%d_x0' % i]) + self.conv1_h(net['t%d_x1' % (i - 1)]))
@@ -302,11 +280,10 @@ class CRNN(nn.Module):
             net['t%d_x4' % i] = self.conv4_x(net['t%d_x3' % i])
 
             # shortcut connection
-            net['t%d_out' % i] = x + net['t%d_x4' % i] \
-                .view(n_seq, n_batch, self.nf, width, height)
+            net['t%d_out' % i] = x + net['t%d_x4' % i].view(n_seq, n_batch, self.nf, width, height)
 
-            net['t%d_out' % i] = net['t%d_out' % i].permute(1, 2, 3, 4, 0)  # (batch_size, n_ch, width, height, n_seq)
+            net['t%d_out' % i] = net['t%d_out' % i].permute(1, 2, 3, 4, 0)  # (batch_size, n_ch, width, height, 1)
 
             x = self.dcs[i - 1].perform(net['t%d_out' % i], k, m)  # data consistency layer
 
-        return x
+        return x, hidden_preserved
