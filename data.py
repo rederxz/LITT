@@ -1,11 +1,11 @@
 import os
 
-import torch
 import numpy as np
+import torch
 from scipy.io import loadmat
+from toolz import curry
 
 import compressed_sensing as cs
-from utils import to_tensor_format
 
 
 def cut_data(input, block_size=(1, 1), cut_edge=None):
@@ -43,6 +43,7 @@ def cut_data(input, block_size=(1, 1), cut_edge=None):
     return input_p
 
 
+@ curry
 def data_aug(img, block_size=None, rotation_xy=False, flip_t=False):
     """
     apply data augmentation to a batch
