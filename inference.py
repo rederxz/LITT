@@ -13,7 +13,16 @@ from model import CRNN
 from utils import from_tensor_format
 
 
-def step_test(dataloader, model, work_dir, fig_interval):
+def step_test(dataloader, model, work_dir, fig_interval, queue_mode):
+    """
+    operate testing
+    :param dataloader: test loader
+    :param model: model to test
+    :param work_dir: ...
+    :param fig_interval: frame intervals to save fig
+    :param queue_mode: if inference one frame by one frame when testing unidirectional model
+    :return:
+    """
     img_gnd_all, img_u_all, mask_all, img_rec_all, t_rec_all = list(), list(), list(), list(), list()
     for i, batch in enumerate(dataloader):
         with torch.no_grad():
@@ -21,7 +30,11 @@ def step_test(dataloader, model, work_dir, fig_interval):
             if torch.cuda.is_available():
                 img_u, k_u, mask, img_gnd = img_u.cuda(), k_u.cuda(), mask.cuda(), img_gnd.cuda()
             tik = time.time()
-            img_rec = model(img_u, k_u, mask)  # [batch_size, 2, width, height, n_seq]
+            if queue_mode:
+                img_rec, hidden = model.queue_forward(img_u, k_u, mask) if i == 0 \
+                    else model.queue_forward(img_u, k_u, mask, hidden)  # [batch_size, 2, width, height, 1]
+            else:
+                img_rec = model(img_u, k_u, mask)  # [batch_size, 2, width, height, n_seq]
             tok = time.time()
 
         # [batch_size, 2, width, height, n_seq] => [width, height] complex np array
@@ -55,6 +68,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--data_path', type=str, default='./LITT_data/', help='the directory of data')
     parser.add_argument('--model_path', type=str, default='./crnn/model.pth', help='the path of model weights')
+    parser.add_argument('--queue_mode', action='store_true',
+                        help='if inference one frame by one frame when testing unidirectional model')
     parser.add_argument('--batch_size', type=int, default=1, help='batch size')
     parser.add_argument('--acc', type=float, default=6.0, help='Acceleration factor for k-space sampling')
     parser.add_argument('--sampled_lines', type=int, default=8, help='Number of sampled lines at k-space center')
@@ -94,4 +109,4 @@ if __name__ == '__main__':
         rec_net = rec_net.cuda()
 
     # test
-    step_test(test_loader, rec_net, args.work_dir, args.fig_interval)
+    step_test(test_loader, rec_net, args.work_dir, args.fig_interval, queue_mode=args.queue_mode)

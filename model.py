@@ -232,7 +232,7 @@ class CRNN(nn.Module):
 
         return x
 
-    def forward_1by1(self, x, k, m, h):
+    def queue_forward(self, x, k, m, h=None):
         """
         perform prediction one by one, helped by the hidden state of the previous frame
         equivalent to doing forward with T=1 and initial CRNN-i hidden state given
@@ -266,10 +266,10 @@ class CRNN(nn.Module):
             net['t%d_x0' % (i - 1)] = net['t%d_x0' % (i - 1)] \
                 .view(-1, self.nf, width, height)  # [1 * n_batch, self.nf, width, height]
 
-            # 1 layer of CRNN-t-i
+            # directly call the CRNN cell
             net['t%d_x0' % i] = self.crnn_t_i.CRNN_model(x, net['t%d_x0' % (i - 1)],
-                                                         h['t%d_x0' % i])  # directly call the CRNN cell
-            hidden_preserved['t%d_x0' % i] = net['t%d_x0' % i]  # preserve hidden of current frame
+                                                         hid_init if h is None else h['t%d_x0' % i])
+            hidden_preserved['t%d_x0' % i] = net['t%d_x0' % i]  # preserve hidden of the current frame
 
             # 3 layers of CRNN-i
             net['t%d_x1' % i] = self.relu(self.conv1_x(net['t%d_x0' % i]) + self.conv1_h(net['t%d_x1' % (i - 1)]))
