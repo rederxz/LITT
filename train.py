@@ -91,10 +91,10 @@ def step_test(dataloader, model, criterion, work_dir):
     # save model
     torch.save(rec_net.state_dict(), os.path.join(work_dir, 'model.pth'))
 
-    # save image
-    sio.savemat(os.path.join(work_dir, 'figure.mat'), {'img_gnd': img_gnd.cpu().numpy(),
-                                                       'img_u': img_u.cpu().numpy(),
-                                                       'img_rec': pred.cpu().numpy()})
+    # save image, [t, x, y] complex images
+    sio.savemat(os.path.join(work_dir, 'figure.mat'), {'img_gnd': from_tensor_format(img_gnd.cpu().numpy()).squeeze(),
+                                                       'img_u': from_tensor_format(img_u.cpu().numpy()).squeeze(),
+                                                       'img_rec': from_tensor_format(pred.cpu().numpy()).squeeze()})
 
 
 if __name__ == '__main__':
