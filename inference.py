@@ -74,6 +74,7 @@ if __name__ == '__main__':
     parser.add_argument('--acc', type=float, default=6.0, help='Acceleration factor for k-space sampling')
     parser.add_argument('--sampled_lines', type=int, default=8, help='Number of sampled lines at k-space center')
     parser.add_argument('--uni_direction', action='store_true', help='Bidirectional or unidirectional network')
+    parser.add_argument('--multi_hidden_t', type=int, default=1, help='Number of hidden_t involved in the model')
     parser.add_argument('--mask_path', type=str, default=None, help='the path of the specified mask')
     parser.add_argument('--nt_network', type=int, default=6, help='Time frames involved in the network.')
     parser.add_argument('--fig_interval', type=int, default=10, help='Frame intervals to save figs.')
@@ -101,7 +102,7 @@ if __name__ == '__main__':
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=2)
 
     # model
-    rec_net = CRNN(uni_direction=args.uni_direction)
+    rec_net = CRNN(uni_direction=args.uni_direction, multi_hidden_t=args.multi_hidden_t)
     rec_net.load_state_dict(torch.load(args.model_path))
 
     # device
