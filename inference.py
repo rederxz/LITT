@@ -85,7 +85,7 @@ if __name__ == '__main__':
 
     # create work directory
     if not os.path.exists(args.work_dir):
-        os.mkdir(args.work_dir)
+        os.makedirs(args.work_dir)
 
     # redirect output to file
     log_file = open(os.path.join(args.work_dir, 'log.log'), 'w')
