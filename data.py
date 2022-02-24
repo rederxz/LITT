@@ -172,7 +172,7 @@ def load_data_v2(data_path, split, nt_network=None, single_echo=True):
         mFFE_img_complex = mFFE_img_complex.transpose((3, 0, 1, 2))  # [echo,x,y,time]
 
         if single_echo:
-            mFFE_img_complex = mFFE_img_complex[0]  # TODO: if single echo, use the 1st one
+            mFFE_img_complex = mFFE_img_complex[1]  # if single echo, use the second one
 
         if nt_network is None:
             data.append(mFFE_img_complex)
@@ -221,7 +221,7 @@ class LITT(torch.utils.data.dataset.Dataset):
                 mFFE_img_complex, (3, 0, 1, 2))  # -> [echo, x, y, time] to adapt to following processing in __getitem__
 
             if single_echo:
-                mFFE_img_complex = mFFE_img_complex[0]  # TODO: if single echo, use the 1st one
+                mFFE_img_complex = mFFE_img_complex[1]  # if single echo, use the second one
 
             if nt_network is None:
                 self.data.append(mFFE_img_complex)
@@ -266,8 +266,11 @@ class LITT(torch.utils.data.dataset.Dataset):
         return len(self.data)
 
 
-def get_LITT_dataset(data_root, split, **kwargs):
+def get_LITT_dataset(data_root, split, specified=True, **kwargs):
     mat_file_path = os.listdir(data_root)
+    if specified:  # set the patient 25 file at the end of the list
+        mat_file_path.remove('Patient25_Part1_Stage3_mFFE_heating.mat')
+        mat_file_path.append('Patient25_Part1_Stage3_mFFE_heating.mat')
     mat_file_path = mat_file_path[:8] if split == 'train' \
         else (mat_file_path[8:9] if split == 'val' else mat_file_path[9:10])
     mat_file_path = [os.path.join(data_root, path) for path in mat_file_path]
