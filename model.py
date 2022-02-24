@@ -78,9 +78,9 @@ class CRNNcell(nn.Module):
         self.kernel_size = kernel_size
         # image2hidden conv
         self.i2h = nn.Conv2d(input_size, hidden_size, kernel_size, padding=self.kernel_size // 2)
-        # hidden(from the previous iter)2hidden conv
-        self.h2h = nn.Conv2d(hidden_size, hidden_size, kernel_size, padding=self.kernel_size // 2)
         # hidden(from the neighbour frame)2hidden conv
+        self.h2h = nn.Conv2d(hidden_size, hidden_size, kernel_size, padding=self.kernel_size // 2)
+        # hidden(from the previous iter)2hidden conv
         self.ih2ih = nn.Conv2d(hidden_size, hidden_size, kernel_size, padding=self.kernel_size // 2)
         self.relu = nn.ReLU(inplace=True)
 
