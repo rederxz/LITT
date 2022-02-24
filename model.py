@@ -82,7 +82,7 @@ class CRNNcell(nn.Module):
         # image2hidden conv
         self.i2h = nn.Conv2d(input_size, hidden_size, kernel_size, padding=self.kernel_size // 2)
         # hidden(from the neighbour frame)2hidden conv
-        self.h2h = []
+        self.h2h = nn.ModuleList()
         for i in range(multi_hidden_t):
             self.h2h.append(nn.Conv2d(hidden_size, hidden_size, kernel_size, padding=self.kernel_size // 2))
         # hidden(from the previous iter)2hidden conv
