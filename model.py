@@ -1,3 +1,5 @@
+from collections import deque
+
 import torch
 import torch.nn as nn
 
@@ -66,41 +68,57 @@ class DataConsistencyInKspace(nn.Module):
 
 
 class CRNNcell(nn.Module):
-    def __init__(self, input_size, hidden_size, kernel_size):
+    def __init__(self, input_size, hidden_size, kernel_size, multi_hidden_t=1):
         """
         Convolutional RNN cell that evolves over both time and iterations
         :param input_size: channels of inputs
         :param hidden_size: channels of hidden states
         :param kernel_size: the kernel size of CNN
-        :param multi_hidden_t: whether use multi hidden states
+        :param multi_hidden_t: ...
         """
         super(CRNNcell, self).__init__()
         self.kernel_size = kernel_size
+        self.multi_hidden_t = multi_hidden_t
         # image2hidden conv
         self.i2h = nn.Conv2d(input_size, hidden_size, kernel_size, padding=self.kernel_size // 2)
         # hidden(from the neighbour frame)2hidden conv
-        self.h2h = nn.Conv2d(hidden_size, hidden_size, kernel_size, padding=self.kernel_size // 2)
+        self.h2h = []
+        for i in range(multi_hidden_t):
+            self.h2h.append(nn.Conv2d(hidden_size, hidden_size, kernel_size, padding=self.kernel_size // 2))
+        self.ph1 = nn.Conv2d(hidden_size, hidden_size, kernel_size, padding=self.kernel_size // 2)  # TODO
+        self.ph2 = nn.Conv2d(hidden_size, hidden_size, kernel_size, padding=self.kernel_size // 2)  # TODO
+        self.ph3 = nn.Conv2d(hidden_size, hidden_size, kernel_size, padding=self.kernel_size // 2)  # TODO
         # hidden(from the previous iter)2hidden conv
         self.ih2ih = nn.Conv2d(hidden_size, hidden_size, kernel_size, padding=self.kernel_size // 2)
         self.relu = nn.ReLU(inplace=True)
 
     def forward(self, input, hidden_i, hidden_t):
         """
-        :param input: the input from the previous layer
-        :param hidden_i: the hidden states of the previous iteration
-        :param hidden_t: the hidden states of the previous frame or the next frame
+        :param input: the input from the previous layer, with shape [batch_size, input_size, x, y]
+        :param hidden_i: the hidden states of the previous iteration, with shape [batch_size, hidden_size, x, y]
+        :param hidden_t: torch tensor or an iterable container of torch tensor(s), the hidden states of the neighbour
+        frame(s), with shape [batch_size, hidden_size, x, y]
         :return: hidden state with shape [batch_size, hidden_size, width, height]
         """
         in_to_hid = self.i2h(input)
         ih_to_ih = self.ih2ih(hidden_i)
-        hid_to_hid = self.h2h(hidden_t)
+
+        # make sure the given hidden_t matches self.multi_hidden_t
+        if not isinstance(hidden_t, deque):
+            hidden_t = deque([hidden_t])
+        assert self.multi_hidden_t == len(hidden_t)
+
+        hid_to_hid = torch.zeros_like(ih_to_ih)
+        for i in range(self.multi_hidden_t):
+            hid_to_hid += self.h2h[i](torch.zeros_like(hidden_i) if hidden_t[i] is None else hidden_t[i])
+
         hidden_out = self.relu(in_to_hid + hid_to_hid + ih_to_ih)
 
         return hidden_out
 
 
 class CRNN_t_i(nn.Module):
-    def __init__(self, input_size, hidden_size, kernel_size, uni_direction=False):
+    def __init__(self, input_size, hidden_size, kernel_size, uni_direction=False, multi_hidden_t=1):
         """
         Recurrent Convolutional RNN layer over iterations and time
         :param input_size: channels of inputs
@@ -113,7 +131,8 @@ class CRNN_t_i(nn.Module):
         self.kernel_size = kernel_size
         self.input_size = input_size
         self.uni_direction = uni_direction
-        self.CRNN_model = CRNNcell(self.input_size, self.hidden_size, self.kernel_size)
+        self.multi_hidden_t = multi_hidden_t
+        self.CRNN_model = CRNNcell(self.input_size, self.hidden_size, self.kernel_size, multi_hidden_t)
 
     def forward(self, input, hidden_i):
         """
@@ -127,18 +146,21 @@ class CRNN_t_i(nn.Module):
 
         # forward
         output = []
-        hidden = hid_init
+        hidden_t_pool = deque([None] * self.multi_hidden_t, maxlen=self.multi_hidden_t)
         for i in range(nt):  # past time frame
-            hidden = self.CRNN_model(input[i], hidden_i[i], hidden)
+            hidden = self.CRNN_model(input[i], hidden_i[i], hidden_t_pool)
+            # Note that the following two sentences do not make memory overhead double
+            hidden_t_pool.append(hidden)
             output.append(hidden[None, ...])
         output = torch.cat(output, dim=0)
 
         if not self.uni_direction:
             # backward
             output_b = []
-            hidden = hid_init
+            hidden_t_pool = deque([None] * self.multi_hidden_t, maxlen=self.multi_hidden_t)
             for i in range(nt):  # future time frame
-                hidden = self.CRNN_model(input[nt - i - 1], hidden_i[nt - i - 1], hidden)
+                hidden = self.CRNN_model(input[nt - i - 1], hidden_i[nt - i - 1], hidden_t_pool)
+                hidden_t_pool.append(hidden)
                 output_b.append(hidden[None, ...])
             output_b = torch.cat(output_b[::-1], dim=0)
             output = output + output_b
@@ -147,7 +169,7 @@ class CRNN_t_i(nn.Module):
 
 
 class CRNN(nn.Module):
-    def __init__(self, n_ch=2, nf=64, ks=3, nc=5, nd=5, uni_direction=False):
+    def __init__(self, n_ch=2, nf=64, ks=3, nc=5, nd=5, uni_direction=False, multi_hidden_t=1):
         """
         Model for Dynamic MRI Reconstruction using Convolutional Neural Networks
         unidirectional version
@@ -156,6 +178,8 @@ class CRNN(nn.Module):
         :param ks: kernel size
         :param nc: number of iterations
         :param nd: number of CRNN/BCRNN/CNN layers in each iteration
+        :param uni_direction: ...
+        :param multi_hidden_t: ...
         """
         super(CRNN, self).__init__()
         self.n_ch = n_ch
@@ -164,8 +188,9 @@ class CRNN(nn.Module):
         self.nf = nf
         self.ks = ks
         self.uni_direction = uni_direction
+        self.multi_hidden_t = multi_hidden_t
 
-        self.crnn_t_i = CRNN_t_i(n_ch, nf, ks, uni_direction)
+        self.crnn_t_i = CRNN_t_i(n_ch, nf, ks, uni_direction, multi_hidden_t)
         self.conv1_x = nn.Conv2d(nf, nf, ks, padding=ks // 2)
         self.conv1_h = nn.Conv2d(nf, nf, ks, padding=ks // 2)
         self.conv2_x = nn.Conv2d(nf, nf, ks, padding=ks // 2)
@@ -241,8 +266,8 @@ class CRNN(nn.Module):
         :param x: input in image domain, [batch_size, 2, width, height, 1]
         :param k: initially sampled elements in k-space, [batch_size, 2, width, height, 1]
         :param m: corresponding nonzero location, [batch_size, 2, width, height, 1]
-        :param h: a dict, contains hidden states over each iteration of the previous frame, each value
-        has shape [batch_size, hidden_size, width, height]
+        :param h: a dict, each value corresponds to each iteration's hidden_t of the previous frame(s), each value
+        is an iterable container whose element(s) has shape [batch_size, hidden_size, width, height]
         :return: reconstruction result, [batch_size, 2, width, height, 1]
                 hidden states, a dict, each value has shape [batch_size, hidden_size, width, height]
         """
@@ -257,8 +282,11 @@ class CRNN(nn.Module):
         for j in range(self.nd - 1):  # except for the last vanilla CNN layer, all layers maintain a hidden state
             net['t0_x%d' % j] = hid_init  # 't' means iteration, 'x' means layers
 
-        # hidden preserved for the next frame
-        hidden_preserved = {}
+        # initialize a hidden_t pool if not given
+        if h is None:
+            h = {}
+            for i in range(1, self.nc + 1):
+                h['t%d_x0' % i] = deque([None] * self.multi_hidden_t, maxlen=self.multi_hidden_t)
 
         # for convenience
         x = x.view(-1, self.n_ch, width, height)  # [1 * batch, n_ch, width, height]
@@ -268,9 +296,8 @@ class CRNN(nn.Module):
         # iterate
         for i in range(1, self.nc + 1):  # i: number of iteration
             # directly call the CRNN cell
-            net['t%d_x0' % i] = self.crnn_t_i.CRNN_model(x, net['t%d_x0' % (i - 1)],
-                                                         hid_init if h is None else h['t%d_x0' % i])
-            hidden_preserved['t%d_x0' % i] = net['t%d_x0' % i]  # preserve hidden of the current frame
+            net['t%d_x0' % i] = self.crnn_t_i.CRNN_model(x, net['t%d_x0' % (i - 1)], h['t%d_x0' % i])
+            h['t%d_x0' % i].append(net['t%d_x0' % i])  # update corresponding hidden_t pool
 
             # 3 layers of CRNN-i
             net['t%d_x1' % i] = self.relu(self.conv1_x(net['t%d_x0' % i]) + self.conv1_h(net['t%d_x1' % (i - 1)]))
@@ -285,4 +312,4 @@ class CRNN(nn.Module):
 
             x = self.dcs[i - 1].perform(net['t%d_out' % i], k, m)  # data consistency layer
 
-        return x[..., None], hidden_preserved
+        return x[..., None], h
