@@ -14,7 +14,7 @@ from model import CRNN
 from utils import from_tensor_format
 
 
-def step_test(dataloader, model, work_dir, fig_interval, queue_mode):
+def step_test(dataloader, model, work_dir, fig_interval, queue_mode, nt_wait=0):
     """
     operate testing
     :param dataloader: test loader
@@ -22,9 +22,50 @@ def step_test(dataloader, model, work_dir, fig_interval, queue_mode):
     :param work_dir: ...
     :param fig_interval: frame intervals to save fig
     :param queue_mode: if inference one frame by one frame when testing unidirectional model
+    :param nt_wait: ...
     :return:
     """
     img_gnd_all, img_u_all, mask_all, img_rec_all, t_rec_all = list(), list(), list(), list(), list()
+
+    if nt_wait > 0:  # simulate preparation stage if needed ...
+        assert not queue_mode
+        first_batch = next(iter(dataloader))
+        with torch.no_grad():
+            img_u, k_u, mask, img_gnd = first_batch['img_u'], first_batch['k_u'], first_batch['mask'], first_batch[
+                'img_gnd']
+            if torch.cuda.is_available():
+                img_u, k_u, mask, img_gnd = img_u.cuda(), k_u.cuda(), mask.cuda(), img_gnd.cuda()
+
+            assert nt_wait < img_u.shape[-1]  # make sure nt_wait < nt_network
+
+            # for frames in range [1, nt_wait]
+            tik = time.time()
+            img_rec = model(img_u[..., :nt_wait], k_u[..., :nt_wait],
+                            mask[..., :nt_wait])  # [batch_size, 2, width, height, nt_wait]
+            tok = time.time()
+            # [batch_size, 2, width, height, n_seq] => [width, height] complex np array
+            assert img_gnd.shape[0] == 1  # make sure batch_size == 1
+            for i in range(nt_wait):
+                img_gnd_all.append(from_tensor_format(img_gnd[..., i].cpu().numpy()).squeeze())
+                img_u_all.append(from_tensor_format(img_u[..., i].cpu().numpy()).squeeze())
+                mask_all.append(from_tensor_format(mask[..., i].cpu().numpy()).squeeze())
+                img_rec_all.append(from_tensor_format(img_rec[..., i].cpu().numpy()).squeeze())
+                t_rec_all.append(tok - tik)
+
+            # for frames in range (nt_wait, nt_network)
+            for i in range(nt_wait + 1, img_u.shape[-1]):
+                tik = time.time()
+                img_rec = model(img_u[..., :i], k_u[..., :i],
+                                mask[..., :i])  # [batch_size, 2, width, height, i-1]
+                tok = time.time()
+                # [batch_size, 2, width, height, n_seq] => [width, height] complex np array
+                assert img_gnd.shape[0] == 1  # make sure batch_size == 1
+                img_gnd_all.append(from_tensor_format(img_gnd[..., -1].cpu().numpy()).squeeze())
+                img_u_all.append(from_tensor_format(img_u[..., -1].cpu().numpy()).squeeze())
+                mask_all.append(from_tensor_format(mask[..., -1].cpu().numpy()).squeeze())
+                img_rec_all.append(from_tensor_format(img_rec[..., -1].cpu().numpy()).squeeze())
+                t_rec_all.append(tok - tik)
+
     for i, batch in enumerate(dataloader):
         with torch.no_grad():
             img_u, k_u, mask, img_gnd = batch['img_u'], batch['k_u'], batch['mask'], batch['img_gnd']
