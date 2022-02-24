@@ -1,5 +1,6 @@
 import argparse
 import os
+import sys
 import time
 import subprocess
 
@@ -82,6 +83,15 @@ if __name__ == '__main__':
     parser.add_argument('--debug', action='store_true', help='debug mode')
     args = parser.parse_args()
 
+    # create work directory
+    if not os.path.exists(args.work_dir):
+        os.mkdir(args.work_dir)
+
+    # redirect output to file
+    log_file = open(os.path.join(args.work_dir, 'log.log'), 'w')
+    sys.stdout = log_file
+    sys.stderr = log_file
+
     # print config
     print('Commit ID:')
     command = 'cd LITT && git rev-parse --short HEAD  && cd ..' if os.path.split(os.getcwd())[-1] != 'LITT' \
@@ -89,10 +99,6 @@ if __name__ == '__main__':
     print(subprocess.getoutput(command))
     print('Params:')
     print(vars(args))
-
-    # create work directory
-    if not os.path.exists(args.work_dir):
-        os.mkdir(args.work_dir)
 
     # data, each sample [n_samples(, echo), t, x, y]
     mask = sio.loadmat(args.mask_path) if args.mask_path is not None else None
