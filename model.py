@@ -148,8 +148,8 @@ class CRNN_t_i(nn.Module):
             hidden = self.CRNN_model(input[i], hidden_i[i], hidden_t_pool)
             # Note that the following two sentences do not make memory overhead double
             hidden_t_pool.append(hidden)
-            output.append(hidden[None, ...])
-        output = torch.cat(output, dim=0)
+            output.append(hidden)
+        output = torch.stack(output, dim=0)
 
         if not self.uni_direction:
             # backward
@@ -158,8 +158,8 @@ class CRNN_t_i(nn.Module):
             for i in range(nt):  # future time frame
                 hidden = self.CRNN_model(input[nt - i - 1], hidden_i[nt - i - 1], hidden_t_pool)
                 hidden_t_pool.append(hidden)
-                output_b.append(hidden[None, ...])
-            output_b = torch.cat(output_b[::-1], dim=0)
+                output_b.append(hidden)
+            output_b = torch.stack(output_b[::-1], dim=0)
             output = output + output_b
 
         return output
@@ -245,13 +245,6 @@ class CRNN(nn.Module):
             net['t%d_out' % i] = net['t%d_out' % i].permute(1, 2, 3, 4, 0)  # (batch_size, n_ch, width, height, n_seq)
 
             x = self.dcs[i - 1].perform(net['t%d_out' % i], k, m)  # data consistency layer
-
-            # # clean up i-1
-            # if test:
-            #     to_delete = [key for key in net if ('t%d' % (i - 1)) in key]
-            #     for elt in to_delete:
-            #         del net[elt]
-            #     torch.cuda.empty_cache()
 
         return x
 
