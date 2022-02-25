@@ -213,7 +213,7 @@ class LITT(torch.utils.data.dataset.Dataset):
         :param single_echo: if only use one echo
         :param acc: accelerating rate
         :param sample_n: preserve how many center lines (sample_n // 2 each side)
-        :param mask: a given mask with shape [..., t, x, y]
+        :param mask_file_path: the path of mask(s) with shape [..., t, x, y]
         :param overlap: if samples overlap with each other along time dimension
         :param transform: transform applied to each sample, need to keep shape [...,time, x, y]
         :return: each sample has shape [(echo,) 2, x, y, time], 'time' size is set to nt_network if specified
@@ -237,7 +237,7 @@ class LITT(torch.utils.data.dataset.Dataset):
                 mFFE_img_complex, (3, 2, 0, 1))  # -> [echo, time, x, y]
 
             if single_echo:
-                mFFE_img_complex = mFFE_img_complex[1]  # if single echo, use the second one
+                mFFE_img_complex = mFFE_img_complex[1]  # if single echo, use the second one, -> [time, x, y]
 
             if mask_file_path is not None:
                 mask = loadmat(mask_file_path[idx])['mask'].reshape(mFFE_img_complex.shape)
@@ -263,7 +263,7 @@ class LITT(torch.utils.data.dataset.Dataset):
 
     def __getitem__(self, idx):
         img_gnd = self.data[idx]  # [(echo, )time, x, y]
-        mask = self.mask[idx]
+        mask = self.mask[idx]  # the same shape with img_gnd
 
         if self.transform is not None:
             img_gnd, mask = self.transform(img_gnd, mask)
