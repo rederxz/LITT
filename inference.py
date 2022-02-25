@@ -103,7 +103,7 @@ def step_test(dataloader, model, work_dir, fig_interval, queue_mode, nt_wait=0):
     # save result, [t, x, y] complex images
     sio.savemat(os.path.join(work_dir, 'test_result.mat'),
                 {'im_grd': np.array(img_gnd_all), 'im_und': np.array(img_u_all), 'mask': np.array(mask_all),
-                 'im_pred': np.array(img_rec_all), 'recon_time_all': np.array(t_rec_all)})
+                 'im_pred': np.array(img_rec_all), 'recon_time_all': np.array(t_rec_all), 'test_nt_wait': nt_wait})
 
 
 if __name__ == '__main__':
