@@ -119,6 +119,7 @@ if __name__ == '__main__':
     parser.add_argument('--multi_hidden_t', type=int, default=1, help='Number of hidden_t involved in the model')
     parser.add_argument('--mask_path', type=str, default=None, help='the path of the specified mask')
     parser.add_argument('--nt_network', type=int, default=6, help='Time frames involved in the network.')
+    parser.add_argument('--nt_wait', type=int, default=0)
     parser.add_argument('--fig_interval', type=int, default=10, help='Frame intervals to save figs.')
     parser.add_argument('--work_dir', type=str, default='crnn', help='work directory')
     parser.add_argument('--debug', action='store_true', help='debug mode')
@@ -142,10 +143,10 @@ if __name__ == '__main__':
     print(vars(args))
 
     # data, each sample [n_samples(, echo), t, x, y]
-    mask = sio.loadmat(args.mask_path) if args.mask_path is not None else None
+    mask_file_path = [args.mask_path] if args.mask_path is not None else None
     test_dataset = get_LITT_dataset(data_root=args.data_path, split='test', nt_network=args.nt_network,
                                     single_echo=True, acc=args.acc, sample_n=args.sampled_lines,
-                                    mask=mask, overlap=True)
+                                    mask_file_path=mask_file_path, overlap=True)
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=2)
 
     # model
@@ -157,4 +158,4 @@ if __name__ == '__main__':
         rec_net = rec_net.cuda()
 
     # test
-    step_test(test_loader, rec_net, args.work_dir, args.fig_interval, queue_mode=args.queue_mode)
+    step_test(test_loader, rec_net, args.work_dir, args.fig_interval, queue_mode=args.queue_mode, nt_wait=args.nt_wait)
