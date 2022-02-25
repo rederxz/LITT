@@ -77,8 +77,8 @@ def data_aug(img, mask=None, block_size=None, rotation_xy=False, flip_t=False):
         if mask is not None:
             mask = cut_data(mask, cut_edge=(0, 32))
 
-        start_x = np.random.randint(0, img.shape[-3] - block_size[0] + 1)
-        start_y = np.random.randint(0, img.shape[-2] - block_size[1] + 1)
+        start_x = np.random.randint(0, img.shape[-2] - block_size[0] + 1)
+        start_y = np.random.randint(0, img.shape[-1] - block_size[1] + 1)
         img = img[..., start_x: start_x + block_size[0], start_y: start_y + block_size[1]]
         if mask is not None:
             mask = mask[..., start_x: start_x + block_size[0], start_y: start_y + block_size[1]]
