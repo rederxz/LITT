@@ -3,6 +3,7 @@ import os
 import sys
 import time
 import subprocess
+from collections import deque
 
 import numpy as np
 import torch
@@ -106,9 +107,81 @@ def step_test(dataloader, model, work_dir, fig_interval, queue_mode, nt_wait=0):
                  'im_pred': np.array(img_rec_all), 'recon_time_all': np.array(t_rec_all), 'test_nt_wait': nt_wait})
 
 
+def step_inference(dataloader, model, work_dir, fig_interval, queue_mode, nt_network, nt_wait=0):
+    img_gnd_all, img_u_all, mask_all, img_rec_all, t_rec_all = list(), list(), list(), list(), list()
+
+    img_u_pool = deque([], maxlen=nt_network)
+    k_u_pool = deque([], maxlen=nt_network)
+    mask_pool = deque([], maxlen=nt_network)
+    img_gnd_pool = deque([], maxlen=nt_network)
+
+    model.eval()
+    for i, batch in enumerate(dataloader):
+        with torch.no_grad():
+            img_u, k_u, mask, img_gnd = batch['img_u'], batch['k_u'], batch['mask'], batch['img_gnd']
+            if torch.cuda.is_available():
+                img_u, k_u, mask, img_gnd = img_u.cuda(), k_u.cuda(), mask.cuda(), img_gnd.cuda()
+
+            img_u_pool.append(img_u)
+            k_u_pool.append(k_u)
+            mask_pool.append(mask)
+            img_gnd_pool.append(img_gnd)
+
+            if i == nt_wait - 1:
+                wanted_start = 0
+                time_record = nt_wait
+            elif i > nt_wait - 1:
+                wanted_start = -1
+                time_record = 1
+            else:
+                continue
+
+            img_u = torch.cat(list(img_u_pool), dim=-1)
+            k_u = torch.cat(list(k_u_pool), dim=-1)
+            mask = torch.cat(list(mask_pool), dim=-1)
+            img_gnd = torch.cat(list(img_gnd_pool), dim=-1)
+
+            tik = time.time()
+            if queue_mode:
+                img_rec, hidden = model.queue_forward(img_u, k_u, mask) if i == 0 \
+                    else model.queue_forward(img_u, k_u, mask, hidden)  # [batch_size, 2, width, height, 1]
+            else:
+                img_rec = model(img_u, k_u, mask)  # [batch_size, 2, width, height, n_seq]
+            tok = time.time()
+
+        # [batch_size, 2, width, height, n_seq] => [t, width, height] complex np array
+        assert img_gnd.shape[0] == 1  # make sure batch_size == 1
+        img_gnd_all.append(from_tensor_format(img_gnd[..., wanted_start:].cpu().numpy()).squeeze(axis=0))
+        img_u_all.append(from_tensor_format(img_u[..., wanted_start:].cpu().numpy()).squeeze(axis=0))
+        mask_all.append(from_tensor_format(mask[..., wanted_start:].cpu().numpy()).squeeze(axis=0))
+        img_rec_all.append(from_tensor_format(img_rec[..., wanted_start:].cpu().numpy()).squeeze(axis=0))
+        t_rec_all.extend([tok - tik] * time_record)
+
+        if (i + 1) % fig_interval == 0:
+            # amp diff
+            im1 = abs(img_gnd_all[-1][-1]) - abs(img_rec_all[-1][-1])
+            im2 = abs(np.concatenate([img_u_all[-1][-1], img_rec_all[-1][-1], img_gnd_all[-1][-1]], 1))
+            im = np.concatenate([im2, 2 * abs(im1)], 1)
+            plt.imsave(os.path.join(work_dir, f'im{i + 1}_x.png'), im, cmap='gray')
+
+            # complex phase_diff
+            im1 = np.angle(img_gnd_all[-1][-1] * np.conj(img_rec_all[-1][-1]))
+            im2 = np.angle(np.concatenate([img_u_all[-1][-1], img_rec_all[-1][-1], img_gnd_all[-1][-1]], 1))
+            im = np.concatenate([im2, 2 * im1], 1)
+            plt.imsave(os.path.join(work_dir, f'im{i + 1}_angle_x.png'), im, cmap='gray')
+
+    # save result, [t, x, y] complex images
+    sio.savemat(os.path.join(work_dir, 'test_result.mat'),
+                {'im_grd': np.concatenate(img_gnd_all), 'im_und': np.concatenate(img_u_all),
+                 'mask': np.concatenate(mask_all), 'im_pred': np.concatenate(img_rec_all),
+                 'recon_time_all': np.array(t_rec_all), 'test_nt_wait': nt_wait})
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
+    parser.add_argument('--work_dir', type=str, default='crnn', help='work directory')
     parser.add_argument('--data_path', type=str, default='./LITT_data/', help='the directory of data')
+    parser.add_argument('--mask_path', type=str, default=None, help='the path of the specified mask')
     parser.add_argument('--model_path', type=str, default='./crnn/model.pth', help='the path of model weights')
     parser.add_argument('--queue_mode', action='store_true',
                         help='if inference one frame by one frame when testing unidirectional model')
@@ -117,11 +190,9 @@ if __name__ == '__main__':
     parser.add_argument('--sampled_lines', type=int, default=8, help='Number of sampled lines at k-space center')
     parser.add_argument('--uni_direction', action='store_true', help='Bidirectional or unidirectional network')
     parser.add_argument('--multi_hidden_t', type=int, default=1, help='Number of hidden_t involved in the model')
-    parser.add_argument('--mask_path', type=str, default=None, help='the path of the specified mask')
     parser.add_argument('--nt_network', type=int, default=6, help='Time frames involved in the network.')
     parser.add_argument('--nt_wait', type=int, default=0)
     parser.add_argument('--fig_interval', type=int, default=10, help='Frame intervals to save figs.')
-    parser.add_argument('--work_dir', type=str, default='crnn', help='work directory')
     parser.add_argument('--debug', action='store_true', help='debug mode')
     args = parser.parse_args()
 
@@ -144,7 +215,7 @@ if __name__ == '__main__':
 
     # data, each sample [n_samples(, echo), t, x, y]
     mask_file_path = [args.mask_path] if args.mask_path is not None else None
-    test_dataset = get_LITT_dataset(data_root=args.data_path, split='test', nt_network=args.nt_network,
+    test_dataset = get_LITT_dataset(data_root=args.data_path, split='test', nt_network=1,
                                     single_echo=True, acc=args.acc, sample_n=args.sampled_lines,
                                     mask_file_path=mask_file_path, overlap=True)
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=2)
@@ -158,4 +229,6 @@ if __name__ == '__main__':
         rec_net = rec_net.cuda()
 
     # test
-    step_test(test_loader, rec_net, args.work_dir, args.fig_interval, queue_mode=args.queue_mode, nt_wait=args.nt_wait)
+    # step_test(test_loader, rec_net, args.work_dir, args.fig_interval, queue_mode=args.queue_mode, nt_wait=args.nt_wait)
+    step_inference(test_loader, rec_net, args.work_dir, args.fig_interval, queue_mode=args.queue_mode,
+                   nt_network=args.nt_network, nt_wait=args.nt_wait)
