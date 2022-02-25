@@ -257,7 +257,7 @@ class LITT(torch.utils.data.dataset.Dataset):
                     self.data.append(mFFE_img_complex[..., -nt_network:, :, :])
                     self.mask.append(mask[..., -nt_network:, :, :])
             else:  # ... with overlapping
-                for i in range(mFFE_img_complex.shape[-1] - (nt_network - 1)):
+                for i in range(mFFE_img_complex.shape[-3] - (nt_network - 1)):
                     self.data.append(mFFE_img_complex[..., i:i + nt_network, :, :])
                     self.mask.append(mask[..., i:i + nt_network, :, :])
 
