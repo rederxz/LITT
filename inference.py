@@ -1,110 +1,32 @@
 import argparse
 import os
+import subprocess
 import sys
 import time
-import subprocess
 from collections import deque
 
-import numpy as np
-import torch
-import scipy.io as sio
 import matplotlib.pyplot as plt
+import numpy as np
+import scipy.io as sio
+import torch
 
 from data import get_LITT_dataset
 from model import CRNN
 from utils import from_tensor_format
 
 
-def step_test(dataloader, model, work_dir, fig_interval, queue_mode, nt_wait=0):
-    """
-    operate testing
-    :param dataloader: test loader
-    :param model: model to test
-    :param work_dir: ...
-    :param fig_interval: frame intervals to save fig
-    :param queue_mode: if inference one frame by one frame when testing unidirectional model
-    :param nt_wait: ...
-    :return:
-    """
-    img_gnd_all, img_u_all, mask_all, img_rec_all, t_rec_all = list(), list(), list(), list(), list()
+def plot_diff(img_gnd, img_u, img_rec):
+    # amp diff
+    im1 = abs(img_gnd) - abs(img_rec)
+    im2 = abs(np.concatenate([img_u, img_rec, img_gnd], 1))
+    amp_diff = np.concatenate([im2, 2 * abs(im1)], 1)
 
-    if nt_wait > 0:  # simulate preparation stage if needed ...
-        assert not queue_mode
-        first_batch = next(iter(dataloader))
-        with torch.no_grad():
-            img_u, k_u, mask, img_gnd = first_batch['img_u'], first_batch['k_u'], first_batch['mask'], first_batch[
-                'img_gnd']
-            if torch.cuda.is_available():
-                img_u, k_u, mask, img_gnd = img_u.cuda(), k_u.cuda(), mask.cuda(), img_gnd.cuda()
+    # complex phase_diff
+    im1 = np.angle(img_gnd * np.conj(img_rec))
+    im2 = np.angle(np.concatenate([img_u, img_rec, img_gnd], 1))
+    phase_diff = np.concatenate([im2, 2 * im1], 1)
 
-            assert nt_wait < img_u.shape[-1]  # make sure nt_wait < nt_network
-
-            # for frames in range [1, nt_wait]
-            tik = time.time()
-            img_rec = model(img_u[..., :nt_wait], k_u[..., :nt_wait],
-                            mask[..., :nt_wait])  # [batch_size, 2, width, height, nt_wait]
-            tok = time.time()
-            # [batch_size, 2, width, height, n_seq] => [width, height] complex np array
-            assert img_gnd.shape[0] == 1  # make sure batch_size == 1
-            for i in range(nt_wait):
-                img_gnd_all.append(from_tensor_format(img_gnd[..., i].cpu().numpy()).squeeze())
-                img_u_all.append(from_tensor_format(img_u[..., i].cpu().numpy()).squeeze())
-                mask_all.append(from_tensor_format(mask[..., i].cpu().numpy()).squeeze())
-                img_rec_all.append(from_tensor_format(img_rec[..., i].cpu().numpy()).squeeze())
-                t_rec_all.append(tok - tik)
-
-            # for frames in range (nt_wait, nt_network)
-            for i in range(nt_wait + 1, img_u.shape[-1]):
-                tik = time.time()
-                img_rec = model(img_u[..., :i], k_u[..., :i],
-                                mask[..., :i])  # [batch_size, 2, width, height, i-1]
-                tok = time.time()
-                # [batch_size, 2, width, height, n_seq] => [width, height] complex np array
-                assert img_gnd.shape[0] == 1  # make sure batch_size == 1
-                img_gnd_all.append(from_tensor_format(img_gnd[..., -1].cpu().numpy()).squeeze())
-                img_u_all.append(from_tensor_format(img_u[..., -1].cpu().numpy()).squeeze())
-                mask_all.append(from_tensor_format(mask[..., -1].cpu().numpy()).squeeze())
-                img_rec_all.append(from_tensor_format(img_rec[..., -1].cpu().numpy()).squeeze())
-                t_rec_all.append(tok - tik)
-
-    for i, batch in enumerate(dataloader):
-        with torch.no_grad():
-            img_u, k_u, mask, img_gnd = batch['img_u'], batch['k_u'], batch['mask'], batch['img_gnd']
-            if torch.cuda.is_available():
-                img_u, k_u, mask, img_gnd = img_u.cuda(), k_u.cuda(), mask.cuda(), img_gnd.cuda()
-            tik = time.time()
-            if queue_mode:
-                img_rec, hidden = model.queue_forward(img_u, k_u, mask) if i == 0 \
-                    else model.queue_forward(img_u, k_u, mask, hidden)  # [batch_size, 2, width, height, 1]
-            else:
-                img_rec = model(img_u, k_u, mask)  # [batch_size, 2, width, height, n_seq]
-            tok = time.time()
-
-        # [batch_size, 2, width, height, n_seq] => [width, height] complex np array
-        assert img_gnd.shape[0] == 1  # make sure batch_size == 1
-        img_gnd_all.append(from_tensor_format(img_gnd[..., -1].cpu().numpy()).squeeze())
-        img_u_all.append(from_tensor_format(img_u[..., -1].cpu().numpy()).squeeze())
-        mask_all.append(from_tensor_format(mask[..., -1].cpu().numpy()).squeeze())
-        img_rec_all.append(from_tensor_format(img_rec[..., -1].cpu().numpy()).squeeze())
-        t_rec_all.append(tok - tik)
-
-        if (i + 1) % fig_interval == 0:  # TODO 是否必要？
-            # amp diff
-            im1 = abs(img_gnd_all[i]) - abs(img_rec_all[i])
-            im2 = abs(np.concatenate([img_u_all[i], img_rec_all[i], img_gnd_all[i]], 1))
-            im = np.concatenate([im2, 2 * abs(im1)], 1)
-            plt.imsave(os.path.join(work_dir, f'im{i + 1}_x.png'), im, cmap='gray')
-
-            # complex phase_diff
-            im1 = np.angle(img_gnd_all[i] * np.conj(img_rec_all[i]))
-            im2 = np.angle(np.concatenate([img_u_all[i], img_rec_all[i], img_gnd_all[i]], 1))
-            im = np.concatenate([im2, 2 * im1], 1)
-            plt.imsave(os.path.join(work_dir, f'im{i + 1}_angle_x.png'), im, cmap='gray')
-
-    # save result, [t, x, y] complex images
-    sio.savemat(os.path.join(work_dir, 'test_result.mat'),
-                {'im_grd': np.array(img_gnd_all), 'im_und': np.array(img_u_all), 'mask': np.array(mask_all),
-                 'im_pred': np.array(img_rec_all), 'recon_time_all': np.array(t_rec_all), 'test_nt_wait': nt_wait})
+    return amp_diff, phase_diff
 
 
 def step_inference(dataloader, model, work_dir, fig_interval, queue_mode, nt_network, nt_wait=0):
@@ -158,17 +80,9 @@ def step_inference(dataloader, model, work_dir, fig_interval, queue_mode, nt_net
         t_rec_all.extend([tok - tik] * time_record)
 
         if (i + 1) % fig_interval == 0:
-            # amp diff
-            im1 = abs(img_gnd_all[-1][-1]) - abs(img_rec_all[-1][-1])
-            im2 = abs(np.concatenate([img_u_all[-1][-1], img_rec_all[-1][-1], img_gnd_all[-1][-1]], 1))
-            im = np.concatenate([im2, 2 * abs(im1)], 1)
-            plt.imsave(os.path.join(work_dir, f'im{i + 1}_x.png'), im, cmap='gray')
-
-            # complex phase_diff
-            im1 = np.angle(img_gnd_all[-1][-1] * np.conj(img_rec_all[-1][-1]))
-            im2 = np.angle(np.concatenate([img_u_all[-1][-1], img_rec_all[-1][-1], img_gnd_all[-1][-1]], 1))
-            im = np.concatenate([im2, 2 * im1], 1)
-            plt.imsave(os.path.join(work_dir, f'im{i + 1}_angle_x.png'), im, cmap='gray')
+            amp_diff, phase_diff = plot_diff(img_gnd_all[-1][-1], img_u_all[-1][-1], img_rec_all[-1][-1])
+            plt.imsave(os.path.join(work_dir, f'im{i + 1}_x.png'), amp_diff, cmap='gray')
+            plt.imsave(os.path.join(work_dir, f'im{i + 1}_angle_x.png'), phase_diff, cmap='gray')
 
     # save result, [t, x, y] complex images
     sio.savemat(os.path.join(work_dir, 'test_result.mat'),
@@ -229,6 +143,5 @@ if __name__ == '__main__':
         rec_net = rec_net.cuda()
 
     # test
-    # step_test(test_loader, rec_net, args.work_dir, args.fig_interval, queue_mode=args.queue_mode, nt_wait=args.nt_wait)
     step_inference(test_loader, rec_net, args.work_dir, args.fig_interval, queue_mode=args.queue_mode,
                    nt_network=args.nt_network, nt_wait=args.nt_wait)
