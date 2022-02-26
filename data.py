@@ -1,4 +1,5 @@
 import os
+import pathlib
 
 import numpy as np
 import torch
@@ -286,14 +287,9 @@ class LITT(torch.utils.data.dataset.Dataset):
         return len(self.data)
 
 
-def get_LITT_dataset(data_root, split, specified=True, **kwargs):
-    mat_file_path = os.listdir(data_root)
-    if specified:  # set the patient 25 file at the end of the list
-        mat_file_path.remove('Patient25_Part1_Stage3_mFFE_heating.mat')
-        mat_file_path.append('Patient25_Part1_Stage3_mFFE_heating.mat')
-    mat_file_path = mat_file_path[:8] if split == 'train' \
-        else (mat_file_path[8:9] if split == 'val' else mat_file_path[9:10])
-    mat_file_path = [os.path.join(data_root, path) for path in mat_file_path]
+def get_LITT_dataset(data_root, split, **kwargs):
+    data_root = pathlib.Path(data_root)
+    base_folder = pathlib.Path(f'data/{split}/').resolve()
+    mat_file_path = sorted([data_root/(x.name + '.mat') for x in base_folder.iterdir()])
     dataset = LITT(mat_file_path, **kwargs)
     return dataset
-
