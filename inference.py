@@ -95,7 +95,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--work_dir', type=str, default='crnn', help='work directory')
     parser.add_argument('--data_path', type=str, default='./LITT_data/', help='the directory of data')
-    parser.add_argument('--mask_path', type=str, default=None, help='the path of the specified mask')
+    parser.add_argument('--mask_path', type=str, nargs='+', help='the path of the specified mask')
     parser.add_argument('--model_path', type=str, default='./crnn/model.pth', help='the path of model weights')
     parser.add_argument('--queue_mode', action='store_true',
                         help='if inference one frame by one frame when testing unidirectional model')
@@ -128,10 +128,9 @@ if __name__ == '__main__':
     print(vars(args))
 
     # data, each sample [n_samples(, echo), t, x, y]
-    mask_file_path = [args.mask_path] if args.mask_path is not None else None
     test_dataset = get_LITT_dataset(data_root=args.data_path, split='test', nt_network=1,
                                     single_echo=True, acc=args.acc, sample_n=args.sampled_lines,
-                                    mask_file_path=mask_file_path, overlap=True)
+                                    mask_file_path=args.mask_file_path, overlap=True)
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=2)
 
     # model
