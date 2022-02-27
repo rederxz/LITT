@@ -205,8 +205,8 @@ def load_data_v2(data_path, split, nt_network=None, single_echo=True):
 
 
 class LITT(torch.utils.data.dataset.Dataset):
-    def __init__(self, mat_file_path, nt_network=None, single_echo=True, acc=6.0, sample_n=8,
-                 mask_file_path=None, overlap=False, transform=None):
+    def __init__(self, mat_file_path, nt_network=1, single_echo=True, acc=6.0, sample_n=8,
+                 mask_file_path=None, overlap=False, nt_wait=0, transform=None):
         """
         build a LITT dataset
         :param mat_file_path: a list, the paths of mat files
@@ -215,7 +215,9 @@ class LITT(torch.utils.data.dataset.Dataset):
         :param acc: accelerating rate
         :param sample_n: preserve how many center lines (sample_n // 2 each side)
         :param mask_file_path: the path of mask(s) with shape [..., t, x, y]
-        :param overlap: if samples overlap with each other along time dimension
+        :param overlap: if samples overlap with each other along time
+        :param nt_wait: if nt_wait > 0, we will use simulation mode where several extra frame groups
+        will be insert in the beginning
         :param transform: transform applied to each sample, need to keep shape [...,time, x, y]
         :return: each sample has shape [(echo,) 2, x, y, time], 'time' size is set to nt_network if specified
         """
@@ -245,10 +247,13 @@ class LITT(torch.utils.data.dataset.Dataset):
             else:
                 mask = cs.cartesian_mask(mFFE_img_complex.shape, acc=self.acc, sample_n=self.sample_n)
 
-            if nt_network is None:
-                self.data.append(mFFE_img_complex)
-                self.mask.append(mask)
-            elif not overlap:  # slice the data along time dim according to nt_network with no overlapping
+            if nt_wait > 0:  # the preparation stage
+                assert nt_wait < nt_network, f'nt_wait({nt_wait}) must be smaller than nt_network({nt_network})'
+                for i in range(nt_wait, nt_network):
+                    self.data.append(mFFE_img_complex[..., :i, :, :])
+                    self.mask.append(mask[..., :i, :, :])
+
+            if not overlap:  # slice the data along time dim according to nt_network with no overlapping
                 total_t = mFFE_img_complex.shape[-3]
                 complete_slice = total_t // nt_network
                 for i in range(complete_slice):
