@@ -1,8 +1,0 @@
-Commit ID:
-b093eb9
-Params:
-{'work_dir': 'crnn', 'data_path': './LITT_data/', 'mask_path': None, 'model_path': './crnn/model.pth', 'queue_mode': False, 'batch_size': 1, 'acc': 6.0, 'sampled_lines': 8, 'uni_direction': False, 'multi_hidden_t': 1, 'nt_network': 6, 'nt_wait': 0, 'fig_interval': 10, 'debug': False}
-Traceback (most recent call last):
-  File "inference.py", line 135, in <module>
-    mask_file_path=args.mask_file_path, overlap=True)
-AttributeError: 'Namespace' object has no attribute 'mask_file_path'
