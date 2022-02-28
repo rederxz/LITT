@@ -113,13 +113,13 @@ if __name__ == '__main__':
                                     mask_file_path=args.mask_path, overlap=True, nt_wait=args.nt_wait)
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=2)
 
-    # model
+    # model & device
     rec_net = CRNN(uni_direction=args.uni_direction, multi_hidden_t=args.multi_hidden_t)
-    rec_net.load_state_dict(torch.load(args.model_path))
-
-    # device
     if torch.cuda.is_available():
         rec_net = rec_net.cuda()
+        rec_net.load_state_dict(torch.load(args.model_path, map_location=torch.device('cuda')))
+    else:
+        rec_net.load_state_dict(torch.load(args.model_path, map_location=torch.device('cpu')))
 
     # test
     step_inference(test_loader, rec_net, args.work_dir, args.fig_interval, queue_mode=args.queue_mode,
