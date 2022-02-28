@@ -46,7 +46,7 @@ def cut_data(input, block_size=(1, 1), cut_edge=None):
 
 @ curry
 def data_aug(img, mask=None, block_size=None, rotation_xy=False, flip_t=False):
-    # FIXME how to apply change to img and mask simultaneously?
+    # FIXME in subsampling patterns (like cartesian), random crop of mask in both x and y direction may cause problem
     """
     apply data augmentation to a batch
     :param img: [n, (echo, )nt, x, y]
@@ -63,7 +63,7 @@ def data_aug(img, mask=None, block_size=None, rotation_xy=False, flip_t=False):
         k = np.random.randint(0, 4)
         img = np.rot90(img, k=k, axes=(-2, -1))
         if mask is not None:
-            mask = np.rot90(mask, k=k, axes=(-2, -1))
+            mask = np.rot90(mask, k=k, axes=(-2, -1))  # here we also rotate mask the same angle
 
     if flip_t and np.rand.random() > 0.5:
         img = img[..., ::-1, :, :]
