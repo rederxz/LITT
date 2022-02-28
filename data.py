@@ -294,7 +294,7 @@ class LITT(torch.utils.data.dataset.Dataset):
 
 def get_LITT_dataset(data_root, split, **kwargs):
     data_root = pathlib.Path(data_root)
-    base_folder = pathlib.Path(f'data/{split}/').resolve()
+    base_folder = (pathlib.Path(__file__).parent.absolute()/pathlib.Path(f'data/{split}/')).resolve()
     mat_file_path = sorted([data_root/(x.name + '.mat') for x in base_folder.iterdir()])
     dataset = LITT(mat_file_path, **kwargs)
     return dataset
