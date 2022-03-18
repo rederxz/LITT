@@ -4,6 +4,7 @@ import pathlib
 import numpy as np
 import torch
 from scipy.io import loadmat
+from skimage import transform as T
 from toolz import curry
 
 import compressed_sensing as cs
@@ -89,7 +90,7 @@ def data_aug(img, mask=None, block_size=None, rotation_xy=False, flip_t=False):
 
 class LITT(torch.utils.data.dataset.Dataset):
     def __init__(self, mat_file_path, nt_network=1, single_echo=True, acc=6.0, sample_n=8,
-                 mask_file_path=None, overlap=False, nt_wait=0, transform=None):
+                 mask_file_path=None, overlap=False, nt_wait=0, transform=None, img_resize=None):
         """
         build a LITT dataset
         :param mat_file_path: a list, the paths of mat files
@@ -102,6 +103,7 @@ class LITT(torch.utils.data.dataset.Dataset):
         :param nt_wait: if nt_wait > 0, we will use simulation mode where several extra frame groups
         will be insert in the beginning
         :param transform: transform applied to each sample, need to keep shape [...,time, x, y]
+        :param img_resize : tuple, (x, y) to resize img
         :return: each sample has shape [(echo,) 2, x, y, time], 'time' size is set to nt_network if specified
         """
         super(LITT, self).__init__()
@@ -121,6 +123,9 @@ class LITT(torch.utils.data.dataset.Dataset):
             mFFE_img_complex = mFFE_img_real + 1j * mFFE_img_imag  # [x, y, time, echo]
             mFFE_img_complex = np.transpose(
                 mFFE_img_complex, (3, 2, 0, 1))  # -> [echo, time, x, y]
+            
+            if img_resize is not None:
+                mFFE_img_complex = T.resize(mFFE_img_complex, (*mFFE_img_complex.shape[:2], *img_resize))
 
             if single_echo:
                 mFFE_img_complex = mFFE_img_complex[1]  # if single echo, use the second one, -> [time, x, y]
