@@ -120,12 +120,14 @@ class LITT(torch.utils.data.dataset.Dataset):
             mat_data = loadmat(file_path)
             mFFE_img_imag = mat_data['mFFE_img_imag']
             mFFE_img_real = mat_data['mFFE_img_real']
+            
+            if img_resize is not None:
+                mFFE_img_imag = T.resize(mFFE_img_imag, (*img_resize, *mFFE_img_imag.shape[-2:]))
+                mFFE_img_real = T.resize(mFFE_img_real, (*img_resize, *mFFE_img_real.shape[-2:]))
+
             mFFE_img_complex = mFFE_img_real + 1j * mFFE_img_imag  # [x, y, time, echo]
             mFFE_img_complex = np.transpose(
                 mFFE_img_complex, (3, 2, 0, 1))  # -> [echo, time, x, y]
-            
-            if img_resize is not None:
-                mFFE_img_complex = T.resize(mFFE_img_complex, (*mFFE_img_complex.shape[:2], *img_resize))
 
             if single_echo:
                 mFFE_img_complex = mFFE_img_complex[1]  # if single echo, use the second one, -> [time, x, y]
