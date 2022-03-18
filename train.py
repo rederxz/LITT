@@ -132,7 +132,7 @@ if __name__ == '__main__':
     print('Params:')
     print(vars(args))
 
-    # data, each sample [n_samples(, echo), t, x, y]
+    # data, each sample [batch_size, (echo,) 2, x, y, time]
     train_transform = data_aug(block_size=(256, 32), rotation_xy=False, flip_t=False)
 
     train_dataset = get_LITT_dataset(data_root=args.data_path, split='train', nt_network=args.nt_network,

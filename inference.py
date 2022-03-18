@@ -107,7 +107,7 @@ if __name__ == '__main__':
     print('Params:')
     print(vars(args))
 
-    # data, each sample [n_samples(, echo), t, x, y]
+    # data, each sample [batch_size, (echo,) 2, x, y, time]
     test_dataset = get_LITT_dataset(data_root=args.data_path, split='test', nt_network=args.nt_network,
                                     single_echo=True, acc=args.acc, sample_n=args.sampled_lines,
                                     mask_file_path=args.mask_path, overlap=True, nt_wait=args.nt_wait)
