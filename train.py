@@ -107,6 +107,7 @@ if __name__ == '__main__':
     parser.add_argument('--lr', type=float, default=0.0001, help='initial learning rate')
     parser.add_argument('--acc', type=float, default=6.0, help='Acceleration factor for k-space sampling')
     parser.add_argument('--sampled_lines', type=int, default=8, help='Number of sampled lines at k-space center')
+    parser.add_argument('--img_size', type=int, default=256, help='Input image size')
     parser.add_argument('--uni_direction', action='store_true', help='Bidirectional or unidirectional network')
     parser.add_argument('--multi_hidden_t', type=int, default=1, help='Number of hidden_t involved in the model')
     parser.add_argument('--nt_network', type=int, default=6, help='Time frames involved in the network.')
@@ -119,10 +120,11 @@ if __name__ == '__main__':
     if not os.path.exists(args.work_dir):
         os.makedirs(args.work_dir)
 
-    # redirect output to file
-    log_file = open(os.path.join(args.work_dir, 'log.log'), 'w')
-    sys.stdout = log_file
-    sys.stderr = log_file
+    if not args.debug:
+        # redirect output to file
+        log_file = open(os.path.join(args.work_dir, 'log.log'), 'w')
+        sys.stdout = log_file
+        sys.stderr = log_file
 
     # print config
     print('Commit ID:')
@@ -133,15 +135,17 @@ if __name__ == '__main__':
     print(vars(args))
 
     # data, each sample [batch_size, (echo,) 2, x, y, time]
-    train_transform = data_aug(block_size=(256, 32), rotation_xy=False, flip_t=False)
+    train_transform = data_aug(block_size=(args.img_size, 32), rotation_xy=False, flip_t=False)
 
     train_dataset = get_LITT_dataset(data_root=args.data_path, split='train', nt_network=args.nt_network,
                                      single_echo=True, acc=args.acc, sample_n=args.sampled_lines,
-                                     transform=train_transform)
+                                     img_resize=(args.img_size,) * 2, transform=train_transform)
     val_dataset = get_LITT_dataset(data_root=args.data_path, split='val', nt_network=args.nt_network,
-                                   single_echo=True, acc=args.acc, sample_n=args.sampled_lines)
+                                   single_echo=True, acc=args.acc, sample_n=args.sampled_lines,
+                                   img_resize=(args.img_size,) * 2)
     test_dataset = get_LITT_dataset(data_root=args.data_path, split='test', nt_network=args.nt_network,
-                                    single_echo=True, acc=args.acc, sample_n=args.sampled_lines)
+                                    single_echo=True, acc=args.acc, sample_n=args.sampled_lines,
+                                    img_resize=(args.img_size,) * 2)
 
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=2)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1, shuffle=False, num_workers=2)

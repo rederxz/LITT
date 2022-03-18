@@ -74,6 +74,7 @@ if __name__ == '__main__':
     parser.add_argument('--data_path', type=str, default='./LITT_data/', help='the directory of data')
     parser.add_argument('--acc', type=float, default=6.0, help='Acceleration factor for k-space sampling')
     parser.add_argument('--sampled_lines', type=int, default=8, help='Number of sampled lines at k-space center')
+    parser.add_argument('--img_size', type=int, default=256, help='Input image size')
     parser.add_argument('--mask_path', type=str, nargs='+', help='the path of the specified mask')
     # -- model --
     parser.add_argument('--model_path', type=str, default='./crnn/model.pth', help='the path of model weights')
@@ -94,10 +95,11 @@ if __name__ == '__main__':
     if not os.path.exists(args.work_dir):
         os.makedirs(args.work_dir)
 
-    # redirect output to file
-    log_file = open(os.path.join(args.work_dir, 'log.log'), 'w')
-    sys.stdout = log_file
-    sys.stderr = log_file
+    if not args.debug:
+        # redirect output to file
+        log_file = open(os.path.join(args.work_dir, 'log.log'), 'w')
+        sys.stdout = log_file
+        sys.stderr = log_file
 
     # print config
     print('Commit ID:')
@@ -110,7 +112,8 @@ if __name__ == '__main__':
     # data, each sample [batch_size, (echo,) 2, x, y, time]
     test_dataset = get_LITT_dataset(data_root=args.data_path, split='test', nt_network=args.nt_network,
                                     single_echo=True, acc=args.acc, sample_n=args.sampled_lines,
-                                    mask_file_path=args.mask_path, overlap=True, nt_wait=args.nt_wait)
+                                    img_resize=(args.img_size,) * 2, mask_file_path=args.mask_path,
+                                    overlap=True, nt_wait=args.nt_wait)
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=2)
 
     # model & device
