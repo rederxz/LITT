@@ -5,7 +5,9 @@ import time
 import subprocess
 
 import torch
+import numpy as np
 import scipy.io as sio
+from torch.utils.tensorboard import SummaryWriter
 
 from data import get_LITT_dataset, data_aug
 from metric import complex_psnr
@@ -13,7 +15,7 @@ from model import CRNN
 from utils import from_tensor_format
 
 
-def step_train(dataloader, model, criterion, optimizer):
+def step_train(dataloader, model, criterion, optimizer, writer, epoch, **kwargs):
     train_loss = 0
     train_batches = 0
     model.train()
@@ -36,9 +38,10 @@ def step_train(dataloader, model, criterion, optimizer):
 
     print(time.strftime('%H:%M:%S') + ' ' + f'train'
           + ' - ' + f'loss: {train_loss}')
+    writer.add_scalar('Loss/train', train_loss, epoch)
 
 
-def step_val(dataloader, model, criterion):
+def step_val(dataloader, model, criterion, writer, epoch, **kwargs):
     val_loss = 0
     val_batches = 0
     model.eval()
@@ -57,9 +60,10 @@ def step_val(dataloader, model, criterion):
 
     print(time.strftime('%H:%M:%S') + ' ' + f'val'
           + ' - ' + f'loss: {val_loss}')
+    writer.add_scalar('Loss/val', val_loss, epoch)
 
 
-def step_test(dataloader, model, criterion, work_dir):
+def step_test(dataloader, model, criterion, work_dir, writer, epoch, **kwargs):
     test_loss = 0
     base_psnr = 0
     test_psnr = 0
@@ -90,13 +94,27 @@ def step_test(dataloader, model, criterion, work_dir):
           + ', ' + f'base PSNR: {base_psnr}'
           + ', ' + f'test PSNR: {test_psnr}')
 
+    writer.add_scalar('Loss/test', test_loss, epoch)
+    writer.add_scalar('PSNR/base', base_psnr, epoch)
+    writer.add_scalar('PSNR/test', test_psnr, epoch)
+
     # save model
     torch.save(rec_net.state_dict(), os.path.join(work_dir, 'model.pth'))
 
     # save image, [t, x, y] complex images
-    sio.savemat(os.path.join(work_dir, 'figure.mat'), {'img_gnd': from_tensor_format(img_gnd.cpu().numpy()).squeeze(),
-                                                       'img_u': from_tensor_format(img_u.cpu().numpy()).squeeze(),
-                                                       'img_rec': from_tensor_format(pred.cpu().numpy()).squeeze()})
+    # sio.savemat(os.path.join(work_dir, 'figure.mat'), {'img_gnd': from_tensor_format(img_gnd.cpu().numpy()).squeeze(),
+    #                                                    'img_u': from_tensor_format(img_u.cpu().numpy()).squeeze(),
+    #                                                    'img_rec': from_tensor_format(pred.cpu().numpy()).squeeze()})
+
+    diagram = np.concatenate([
+        abs(from_tensor_format(img_gnd.cpu().numpy()).squeeze())[-1],
+        abs(from_tensor_format(img_u.cpu().numpy()).squeeze())[-1],
+        abs(from_tensor_format(pred.cpu().numpy()).squeeze())[-1]
+    ], axis=1)
+    writer.add_image('Viz', diagram, epoch, dataformats='HW')
+    # writer.add_image('Viz/img_gnd', abs(from_tensor_format(img_gnd.cpu().numpy()).squeeze())[-1], epoch, dataformats='HW')
+    # writer.add_image('Viz/img_u', abs(from_tensor_format(img_u.cpu().numpy()).squeeze())[-1], epoch, dataformats='HW')
+    # writer.add_image('Viz/img_rec', abs(from_tensor_format(pred.cpu().numpy()).squeeze())[-1], epoch, dataformats='HW')
 
 
 if __name__ == '__main__':
@@ -126,6 +144,8 @@ if __name__ == '__main__':
         sys.stdout = log_file
         sys.stderr = log_file
 
+    writer = SummaryWriter(args.work_dir)
+
     # print config
     print('Commit ID:')
     command = 'cd LITT && git rev-parse --short HEAD  && cd ..' if os.path.split(os.getcwd())[-1] != 'LITT' \
@@ -137,7 +157,7 @@ if __name__ == '__main__':
     # data, each sample [batch_size, (echo,) 2, x, y, time]
     train_transform = data_aug(block_size=(args.img_size, 32), rotation_xy=False, flip_t=False)
 
-    train_dataset = get_LITT_dataset(data_root=args.data_path, split='train', nt_network=args.nt_network,
+    train_dataset = get_LITT_dataset(data_root=args.data_path, split='val', nt_network=args.nt_network,
                                      single_echo=True, acc=args.acc, sample_n=args.sampled_lines,
                                      img_resize=(args.img_size,) * 2, transform=train_transform)
     val_dataset = get_LITT_dataset(data_root=args.data_path, split='val', nt_network=args.nt_network,
@@ -162,9 +182,16 @@ if __name__ == '__main__':
         criterion.cuda()
 
     # training, validation & test
-    for epoch in range(args.num_epoch):
-        print(f'Epoch {epoch + 1}/{args.num_epoch}')
-        step_train(train_loader, rec_net, criterion, optimizer)
-        step_val(val_loader, rec_net, criterion)
+    generic_settings = {
+        'model': rec_net,
+        'criterion': criterion,
+        'optimizer': optimizer,
+        'work_dir': args.work_dir,
+        'writer': writer
+    }
+    for epoch in range(1, args.num_epoch + 1):
+        print(f'Epoch {epoch}/{args.num_epoch}')
+        step_train(epoch=epoch, dataloader=train_loader, **generic_settings)
+        step_val(epoch=epoch, dataloader=val_loader, **generic_settings)
         if (epoch + 1) % args.test_interval == 0:
-            step_test(test_loader, rec_net, criterion, args.work_dir)
+            step_test(epoch=epoch, dataloader=test_loader, **generic_settings)
