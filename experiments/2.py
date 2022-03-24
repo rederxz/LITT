@@ -128,8 +128,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # create work directory
-    if not os.path.exists(args.work_dir):
-        os.makedirs(args.work_dir)
+    os.makedirs(args.work_dir, exist_ok=False)
 
     if not args.debug:
         # redirect output to file
