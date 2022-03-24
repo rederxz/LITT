@@ -1,6 +1,7 @@
 import argparse
 import os
 import sys
+sys.path.append('..')
 import time
 import subprocess
 
@@ -164,7 +165,7 @@ if __name__ == '__main__':
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=2)
 
     # model, loss, optimizer
-    rec_net = resCRNN(uni_direction=args.uni_direction, multi_hidden_t=args.multi_hidden_t, n_ch=128)
+    rec_net = resCRNN(uni_direction=args.uni_direction, multi_hidden_t=args.multi_hidden_t, nf=128)
     criterion = torch.nn.MSELoss()
     optimizer = torch.optim.Adam(rec_net.parameters(), lr=args.lr, betas=(0.5, 0.999))
 
