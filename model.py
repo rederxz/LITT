@@ -384,7 +384,7 @@ class CRNN_t(CRNN_t_i):
         self.CRNN_model = CRNNcell_t(self.input_size, self.hidden_size, self.kernel_size, multi_hidden_t)
 
 
-class CRNN_T(CRNN):
+class CRNN_T(nn.Module):
     def __init__(self, n_ch=2, nf=64, ks=3, nc=5, nd=5, uni_direction=False, multi_hidden_t=1):
         """
         Model for Dynamic MRI Reconstruction using Convolutional Neural Networks
