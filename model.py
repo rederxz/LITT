@@ -303,3 +303,70 @@ class CRNN(nn.Module):
             x = self.dcs[i - 1].perform(net['t%d_out' % i], k, m)  # data consistency layer
 
         return x[..., None], h
+
+
+class resCRNNcell(CRNNcell):
+    def __init__(self, input_size, hidden_size, kernel_size, multi_hidden_t=1):
+        """
+        Just use identity mapping as the hidden2hidden connection.
+        """
+        super(resCRNNcell, self).__init__()
+        self.kernel_size = kernel_size
+        self.multi_hidden_t = multi_hidden_t
+        # image2hidden conv
+        self.i2h = nn.Conv2d(input_size, hidden_size, kernel_size, padding=self.kernel_size // 2)
+        # hidden(from the neighbour frame)2hidden conv
+        self.h2h = nn.ModuleList()
+        for i in range(multi_hidden_t):
+            self.h2h.append(nn.Conv2d(hidden_size, hidden_size, kernel_size, padding=self.kernel_size // 2))
+        # hidden(from the previous iter)2hidden conv
+        self.ih2ih = nn.Identity()
+        self.relu = nn.ReLU(inplace=True)
+
+
+class resCRNN_t_i(CRNN_t_i):
+    def __init__(self, input_size, hidden_size, kernel_size, uni_direction=False, multi_hidden_t=1):
+        """
+        Recurrent Convolutional RNN layer over iterations and time
+        :param input_size: channels of inputs
+        :param hidden_size: channels of hidden states
+        :param kernel_size: the kernel size of CNN
+        :param uni_direction: ...
+        """
+        super(resCRNN_t_i, self).__init__()
+        self.hidden_size = hidden_size
+        self.kernel_size = kernel_size
+        self.input_size = input_size
+        self.uni_direction = uni_direction
+        self.multi_hidden_t = multi_hidden_t
+        self.CRNN_model = resCRNNcell(self.input_size, self.hidden_size, self.kernel_size, multi_hidden_t)
+
+
+class resCRNN(CRNN):
+    def __init__(self, n_ch=2, nf=64, ks=3, nc=5, nd=5, uni_direction=False, multi_hidden_t=1):
+        """
+        Just use identity mapping as the hidden2hidden connection.
+        """
+        super(resCRNN, self).__init__()
+        self.n_ch = n_ch
+        self.nc = nc
+        self.nd = nd
+        self.nf = nf
+        self.ks = ks
+        self.uni_direction = uni_direction
+        self.multi_hidden_t = multi_hidden_t
+
+        self.crnn_t_i = resCRNN_t_i(n_ch, nf, ks, uni_direction, multi_hidden_t)
+        self.conv1_x = nn.Conv2d(nf, nf, ks, padding=ks // 2)
+        self.conv1_h = nn.Identity()
+        self.conv2_x = nn.Conv2d(nf, nf, ks, padding=ks // 2)
+        self.conv2_h = nn.Identity()
+        self.conv3_x = nn.Conv2d(nf, nf, ks, padding=ks // 2)
+        self.conv3_h = nn.Identity()
+        self.conv4_x = nn.Conv2d(nf, n_ch, ks, padding=ks // 2)
+        self.relu = nn.ReLU(inplace=True)
+
+        dcs = []
+        for i in range(nc):
+            dcs.append(DataConsistencyInKspace(norm='ortho'))
+        self.dcs = dcs
