@@ -575,7 +575,7 @@ class CRNNcell_DFM(CRNNcell):
 
 class CRNN_t_i_DFM(CRNN_t_i):
     def __init__(self, input_size, hidden_size, kernel_size, uni_direction=False, multi_hidden_t=1):
-        super().__init__(input_qsize, hidden_size, kernel_size, uni_direction, multi_hidden_t)
+        super().__init__(input_size, hidden_size, kernel_size, uni_direction, multi_hidden_t)
         self.CRNN_model = CRNNcell_DFM(self.input_size, self.hidden_size, self.kernel_size, multi_hidden_t)
 
 
