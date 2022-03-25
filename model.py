@@ -3,6 +3,8 @@ from collections import deque
 import torch
 import torch.nn as nn
 
+from dcn import DeformableConv2d
+
 
 def data_consistency(k, k0, mask, noise_lvl=None):
     """
@@ -556,3 +558,35 @@ class CRNN_T_Deep(nn.Module):
 
     def queue_forward(self, x, k, m, h=None):
         pass
+
+
+class CRNNcell_DFM(CRNNcell):
+    def __init__(self, input_size, hidden_size, kernel_size, multi_hidden_t=1):
+        super().__init__(input_size, hidden_size, kernel_size, multi_hidden_t)
+        # image2hidden conv
+        self.i2h = DeformableConv2d(input_size, hidden_size, kernel_size, padding=self.kernel_size // 2)
+        # hidden(from the neighbour frame)2hidden conv
+        self.h2h = nn.ModuleList()
+        for i in range(multi_hidden_t):
+            self.h2h.append(DeformableConv2d(hidden_size, hidden_size, kernel_size, padding=self.kernel_size // 2))
+        # hidden(from the previous iter)2hidden conv
+        self.ih2ih = DeformableConv2d(hidden_size, hidden_size, kernel_size, padding=self.kernel_size // 2)
+
+
+class CRNN_t_i_DFM(CRNN_t_i):
+    def __init__(self, input_size, hidden_size, kernel_size, uni_direction=False, multi_hidden_t=1):
+        super().__init__(input_qsize, hidden_size, kernel_size, uni_direction, multi_hidden_t)
+        self.CRNN_model = CRNNcell_DFM(self.input_size, self.hidden_size, self.kernel_size, multi_hidden_t)
+
+
+class CRNN_DFM(CRNN):
+    def __init__(self, n_ch=2, nf=64, ks=3, nc=5, nd=5, uni_direction=False, multi_hidden_t=1):
+        super().__init__(n_ch, nf, ks, nc, nd, uni_direction, multi_hidden_t)
+        self.crnn_t_i = CRNN_t_i_DFM(n_ch, nf, ks, uni_direction, multi_hidden_t)
+        self.conv1_x = DeformableConv2d(nf, nf, ks, padding=ks // 2)
+        self.conv1_h = DeformableConv2d(nf, nf, ks, padding=ks // 2)
+        self.conv2_x = DeformableConv2d(nf, nf, ks, padding=ks // 2)
+        self.conv2_h = DeformableConv2d(nf, nf, ks, padding=ks // 2)
+        self.conv3_x = DeformableConv2d(nf, nf, ks, padding=ks // 2)
+        self.conv3_h = DeformableConv2d(nf, nf, ks, padding=ks // 2)
+        self.conv4_x = DeformableConv2d(nf, n_ch, ks, padding=ks // 2)
