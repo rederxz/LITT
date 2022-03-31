@@ -157,7 +157,7 @@ if __name__ == '__main__':
     # data, each sample [batch_size, (echo,) 2, x, y, time]
     train_transform = data_aug(block_size=(args.img_size, 32), rotation_xy=False, flip_t=False)
 
-    train_dataset = get_LITT_dataset(data_root=args.data_path, split='val', nt_network=args.nt_network,
+    train_dataset = get_LITT_dataset(data_root=args.data_path, split='train', nt_network=args.nt_network,
                                      single_echo=True, acc=args.acc, sample_n=args.sampled_lines,
                                      img_resize=(args.img_size,) * 2, transform=train_transform)
     val_dataset = get_LITT_dataset(data_root=args.data_path, split='val', nt_network=args.nt_network,
