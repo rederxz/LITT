@@ -6,6 +6,23 @@ import torch.nn as nn
 from dcn import DeformableConv2d
 
 
+def i2k(x):
+    if x.dim() == 4:  # input is 2D
+        x = x.permute(0, 2, 3, 1)
+    elif x.dim() == 5:  # input is 3D
+        x = x.permute(0, 4, 2, 3, 1)
+
+    x = torch.view_as_complex(x.contiguous())
+    k = torch.fft.fft2(x, norm='ortho')
+    k = torch.view_as_real(k)
+
+    if k.dim() == 4:
+        k = k.permute(0, 3, 1, 2)
+    elif k.dim() == 5:
+        k = k.permute(0, 4, 2, 3, 1)
+
+    return k
+
 def data_consistency(k, k0, mask, noise_lvl=None):
     """
     k    - input in k-space
@@ -590,3 +607,56 @@ class CRNN_DFM(CRNN):
         self.conv3_x = DeformableConv2d(nf, nf, ks, padding=ks // 2)
         self.conv3_h = DeformableConv2d(nf, nf, ks, padding=ks // 2)
         self.conv4_x = DeformableConv2d(nf, n_ch, ks, padding=ks // 2)
+
+
+class CRNN_IDC(CRNN):
+    def forward(self, x, k, m):
+        """
+        :param x: input in image domain, [batch_size, 2, width, height, n_seq]
+        :param k: initially sampled elements in k-space, [batch_size, 2, width, height, n_seq]
+        :param m: corresponding nonzero location, [batch_size, 2, width, height, n_seq]
+        :return: reconstruction result, [batch_size, 2, width, height, n_seq]
+        """
+        net = {}
+        n_batch, n_ch, width, height, n_seq = x.size()
+        size_h = [n_seq * n_batch, self.nf, width, height]
+        hid_init = x.new_zeros(size_h)  # the initial zero-valued hidden state (the same device and dtype as x)
+
+        # initialize hidden states
+        for j in range(self.nd - 1):  # except for the last vanilla CNN layer, all layers maintain a hidden state
+            net['t0_x%d' % j] = hid_init  # 't' means iteration here
+
+        output_k = torch.zeros_like(x)
+
+        # iterate
+        for i in range(1, self.nc + 1):  # i: number of iteration
+            x = x.permute(4, 0, 1, 2, 3)  # [n_seq, batch, n_ch, width, height]
+
+            net['t%d_x0' % (i - 1)] = net['t%d_x0' % (i - 1)] \
+                .view(n_seq, n_batch, self.nf, width, height)  # [n_seq, n_batch, self.nf, width, height] as required by CRNN_t_i
+
+            # 1 layer of CRNN-t-i
+            net['t%d_x0' % i] = self.crnn_t_i(x, net['t%d_x0' % (i - 1)])
+
+            net['t%d_x0' % i] = net['t%d_x0' % i] \
+                .view(-1, self.nf, width, height)  # [n_seq * n_batch, self.nf, width, height] as required by following CNN layers
+
+            # 3 layers of CRNN-i
+            net['t%d_x1' % i] = self.relu(self.conv1_x(net['t%d_x0' % i]) + self.conv1_h(net['t%d_x1' % (i - 1)]))
+            net['t%d_x2' % i] = self.relu(self.conv2_x(net['t%d_x1' % i]) + self.conv2_h(net['t%d_x2' % (i - 1)]))
+            net['t%d_x3' % i] = self.relu(self.conv3_x(net['t%d_x2' % i]) + self.conv3_h(net['t%d_x3' % (i - 1)]))
+
+            # 1 layer of vanilla CNN
+            net['t%d_x4' % i] = self.conv4_x(net['t%d_x3' % i])
+
+            # shortcut connection
+            net['t%d_out' % i] = x + net['t%d_x4' % i].view(n_seq, n_batch, n_ch, width, height)
+
+            net['t%d_out' % i] = net['t%d_out' % i].permute(1, 2, 3, 4, 0)  # (batch_size, n_ch, width, height, n_seq)
+
+            x = self.dcs[i - 1].perform(net['t%d_out' % i], k, m)  # data consistency layer
+
+            if i == self.nc:
+                output_k = i2k(net['t%d_out' % i])
+
+        return x, output_k
