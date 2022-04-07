@@ -1,3 +1,4 @@
+from toolz import curry
 import numpy as np
 import mymath
 from numpy.lib.stride_tricks import as_strided
@@ -7,6 +8,7 @@ def normal_pdf(length, sensitivity):
     return np.exp(-sensitivity * (np.arange(length) - length / 2)**2)
 
 
+@ curry
 def cartesian_mask(shape, acc, sample_n=10, centred=False):
     """
     Sampling density estimated from implementation of kt FOCUSS
