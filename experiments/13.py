@@ -33,10 +33,11 @@ def step_train(dataloader, model, criterion, optimizer, writer, epoch, **kwargs)
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        scheduler.step()
 
         train_loss += loss.item()
         train_batches += 1
+
+    scheduler.step()
 
     train_loss /= train_batches
 
