@@ -221,5 +221,5 @@ if __name__ == '__main__':
         print(f'Epoch {epoch}/{args.num_epoch}')
         step_train(epoch=epoch, dataloader=train_loader, **generic_settings)
         step_val(epoch=epoch, dataloader=val_loader, **generic_settings)
-        if (epoch + 1) % args.test_interval == 0:
+        if epoch % args.test_interval == 0:
             step_test(epoch=epoch, dataloader=test_loader, **generic_settings)
