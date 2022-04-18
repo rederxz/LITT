@@ -40,7 +40,7 @@ def step_train(dataloader, model, criterion, optimizer, writer, epoch, **kwargs)
     train_loss /= train_batches
 
     print(time.strftime('%H:%M:%S') + ' ' + f'train'
-          + ' - ' + f'loss: {train_loss}')
+          + ' - ' + f'loss: {train_loss:.6f}')
     writer.add_scalar('Loss/train', train_loss, epoch)
 
     scheduler.step()
@@ -64,7 +64,7 @@ def step_val(dataloader, model, criterion, writer, epoch, **kwargs):
     val_loss /= val_batches
 
     print(time.strftime('%H:%M:%S') + ' ' + f'val'
-          + ' - ' + f'loss: {val_loss}')
+          + ' - ' + f'loss: {val_loss:.6f}')
     writer.add_scalar('Loss/val', val_loss, epoch)
 
 
@@ -110,10 +110,10 @@ def step_test(dataloader, model, criterion, work_dir, writer, epoch, **kwargs):
 
     # save metrics
     print(time.strftime('%H:%M:%S') + ' ' + f'test'
-          + ' - ' + f'loss: {test_loss}'
-          + ', ' + f'PSNR: {base_psnr}->{test_psnr}'
-          + ', ' + f'Magnitude SSIM: {base_mag_ssim}->{test_mag_ssim}'
-          + ', ' + f'Phase RMSE: {base_phase_rmse}->{test_phase_rmse}')
+          + ' - ' + f'loss: {test_loss:.6f}'
+          + ', ' + f'PSNR: {base_psnr:.4f}->{test_psnr:.4f}'
+          + ', ' + f'Magnitude SSIM: {base_mag_ssim:.4f}->{test_mag_ssim:.4f}'
+          + ', ' + f'Phase RMSE: {base_phase_rmse:.4f}->{test_phase_rmse:.4f}')
 
     writer.add_scalar('Loss/test', test_loss, epoch)
     writer.add_scalar('PSNR/base', base_psnr, epoch)
@@ -137,8 +137,8 @@ def step_test(dataloader, model, criterion, work_dir, writer, epoch, **kwargs):
         np.angle(from_tensor_format(img_u.cpu().numpy()).squeeze())[-1],
         np.angle(from_tensor_format(pred.cpu().numpy()).squeeze())[-1]
     ], axis=1)
-    writer.add_image('Magnitude', mag_diagram, epoch, dataformats='HW')
-    writer.add_image('Phase', phase_diagram, epoch, dataformats='HW')
+    writer.add_image('Viz/Magnitude', mag_diagram, epoch, dataformats='HW')
+    writer.add_image('Viz/Phase', phase_diagram, epoch, dataformats='HW')
 
 
 if __name__ == '__main__':
