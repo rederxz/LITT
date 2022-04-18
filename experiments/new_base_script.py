@@ -107,6 +107,8 @@ def step_test(dataloader, model, criterion, work_dir, writer, epoch, **kwargs):
     test_mag_ssim /= test_batches * 1
     base_phase_rmse /= test_batches * 1
     test_phase_rmse /= test_batches * 1
+
+    # save metrics
     print(time.strftime('%H:%M:%S') + ' ' + f'test'
           + ' - ' + f'loss: {test_loss}'
           + ', ' + f'PSNR: {base_psnr}->{test_psnr}'
@@ -124,20 +126,19 @@ def step_test(dataloader, model, criterion, work_dir, writer, epoch, **kwargs):
     # save model
     torch.save(rec_net.state_dict(), os.path.join(work_dir, 'model.pth'))
 
-    # save image, [t, x, y] complex images
-    # sio.savemat(os.path.join(work_dir, 'figure.mat'), {'img_gnd': from_tensor_format(img_gnd.cpu().numpy()).squeeze(),
-    #                                                    'img_u': from_tensor_format(img_u.cpu().numpy()).squeeze(),
-    #                                                    'img_rec': from_tensor_format(pred.cpu().numpy()).squeeze()})
-
-    diagram = np.concatenate([
+    # save images
+    mag_diagram = np.concatenate([
         abs(from_tensor_format(img_gnd.cpu().numpy()).squeeze())[-1],
         abs(from_tensor_format(img_u.cpu().numpy()).squeeze())[-1],
-        abs(from_tensor_format(pred.cpu().numpy()).squeeze())[-1]
+        abs(from_tensor_format(pred.cpu().numpy()).squeeze())[-1],
     ], axis=1)
-    writer.add_image('Viz', diagram, epoch, dataformats='HW')
-    # writer.add_image('Viz/img_gnd', abs(from_tensor_format(img_gnd.cpu().numpy()).squeeze())[-1], epoch, dataformats='HW')
-    # writer.add_image('Viz/img_u', abs(from_tensor_format(img_u.cpu().numpy()).squeeze())[-1], epoch, dataformats='HW')
-    # writer.add_image('Viz/img_rec', abs(from_tensor_format(pred.cpu().numpy()).squeeze())[-1], epoch, dataformats='HW')
+    phase_diagram = np.concatenate([
+        np.angle(from_tensor_format(img_gnd.cpu().numpy()).squeeze())[-1],
+        np.angle(from_tensor_format(img_u.cpu().numpy()).squeeze())[-1],
+        np.angle(from_tensor_format(pred.cpu().numpy()).squeeze())[-1]
+    ], axis=1)
+    writer.add_image('Magnitude', mag_diagram, epoch, dataformats='HW')
+    writer.add_image('Phase', phase_diagram, epoch, dataformats='HW')
 
 
 if __name__ == '__main__':
