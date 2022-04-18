@@ -88,21 +88,25 @@ def step_test(dataloader, model, criterion, work_dir, writer, epoch, **kwargs):
 
         for img_i, img_u_i, pred_i in zip(from_tensor_format(img_gnd.cpu().numpy()),
                                           from_tensor_format(img_u.cpu().numpy()),
-                                          from_tensor_format(pred.cpu().numpy())):
+                                          from_tensor_format(pred.cpu().numpy())):  # -> [t, x, y]
             base_psnr += complex_psnr(img_i, img_u_i, peak='max')
             test_psnr += complex_psnr(img_i, pred_i, peak='max')
-            base_mag_ssim += np.mean([cal_ssim(abs(img_i[..., i]), abs(img_u_i[..., i]))
-                                  for i in range(img_i.shape[-1])])
-            test_mag_ssim += np.mean([cal_ssim(abs(img_i[..., i]), abs(pred_i[..., i]))
-                                  for i in range(img_i.shape[-1])])
-            base_phase_rmse += np.mean([np.sqrt(cal_mse(np.angle(img_i[..., i]), np.angle(img_u_i[..., i])))
-                                 for i in range(img_i.shape[-1])])
-            test_phase_rmse += np.mean([np.sqrt(cal_mse(np.angle(img_i[..., i]), np.angle(pred_i[..., i])))
-                                 for i in range(img_i.shape[-1])])
+            base_mag_ssim += np.mean([cal_ssim(abs(img_i[i, ...]), abs(img_u_i[i, ...]))
+                                      for i in range(img_i.shape[0])])
+            test_mag_ssim += np.mean([cal_ssim(abs(img_i[i, ...]), abs(pred_i[i, ...]))
+                                      for i in range(img_i.shape[0])])
+            base_phase_rmse += np.mean([np.sqrt(cal_mse(np.angle(img_i[i, ...]), np.angle(img_u_i[i, ...])))
+                                        for i in range(img_i.shape[0])])
+            test_phase_rmse += np.mean([np.sqrt(cal_mse(np.angle(img_i[i, ...]), np.angle(pred_i[i, ...])))
+                                        for i in range(img_i.shape[0])])
 
     test_loss /= test_batches
     base_psnr /= test_batches * 1  # "1" for iteration within each mini-batch  (batch_size == 1)
     test_psnr /= test_batches * 1
+    base_mag_ssim /= test_batches * 1
+    test_mag_ssim /= test_batches * 1
+    base_phase_rmse /= test_batches * 1
+    test_phase_rmse /= test_batches * 1
     print(time.strftime('%H:%M:%S') + ' ' + f'test'
           + ' - ' + f'loss: {test_loss}'
           + ', ' + f'PSNR: {base_psnr}->{test_psnr}'
