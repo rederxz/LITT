@@ -12,7 +12,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 from data import get_LITT_dataset, data_aug
 from metric import complex_psnr
-from model_exp import CRNN
+from model_vsr import CRNN
 from utils import from_tensor_format
 
 

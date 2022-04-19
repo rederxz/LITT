@@ -13,7 +13,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 from data import get_LITT_dataset_v2, data_aug
 from metric import complex_psnr
-from model_exp import CRNN
+from model_vsr import CRNN
 from utils import from_tensor_format
 import compressed_sensing as cs
 
