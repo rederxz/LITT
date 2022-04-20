@@ -31,16 +31,18 @@ class ConvST(nn.Module):
         # space convolution
         x = x.reshape(t * batch_size, input_size, width, height)
         x = self.conv_space(x)
+        x = x.reshape(t, batch_size, -1, width, height)
 
         x = self.leaky_relu(x)
 
         # time convolution
+        x = x.permute(1, 3, 4, 2, 0)
         x = x.reshape(batch_size * width * height, -1, t)
         x = self.conv_time(x)
+        x = x.reshape(batch_size, width, height, -1, t)
+        x = x.permute(4, 0, 3, 1, 2)
 
         # x = self.leaky_relu(x)
-
-        x = x.reshape(t, batch_size, -1, width, height)
 
         return x
 
