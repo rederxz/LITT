@@ -15,29 +15,27 @@ class CRNNCell(nn.Module):
         :param kernel_size: the kernel size of CNN
         """
         super(CRNNCell, self).__init__()
-        # input2hidden conv
         self.input2hidden = nn.Conv2d(input_size, hidden_size, kernel_size, dilation=dilation, padding='same')
-        # hidden(from the neighbour frame)2hidden conv
         self.hidden_t2hidden = nn.Conv2d(hidden_size, hidden_size, kernel_size, dilation=dilation, padding='same')
+        self.hidden_i2hidden = nn.Conv2d(hidden_size, hidden_size, kernel_size, dilation=dilation, padding='same')
         self.leaky_relu = nn.LeakyReLU(0.01, inplace=True)
 
-    def forward(self, input, hidden_t):
+    def forward(self, input, hidden_t, hidden_i):
         """
         :param input: the input from the previous layer, with shape [batch_size, input_size, x, y]
-        :param hidden_t: torch tensor or an iterable container of torch tensor(s), the hidden states of the neighbour
-        frame(s), with shape [batch_size, hidden_size, x, y]
+        :param hidden_t: torch tensor, the hidden state of the neighbour, with shape [batch_size, hidden_size, x, y]
+        :param hidden_i: torch tensor, the hidden state from the last iteration, with shape [batch_size, hidden_size, x, y]
         :return: hidden state with shape [batch_size, hidden_size, width, height]
         """
         hidden_from_input = self.input2hidden(input)
         hidden_from_hidden_t = self.hidden_t2hidden(hidden_t)
-        # print(hidden_from_input.shape)
-        # print(hidden_from_hidden_t.shape)
-        hidden_out = self.leaky_relu(hidden_from_input + hidden_from_hidden_t)
+        hidden_from_hidden_i = self.hidden_i2hidden(hidden_i)
+        hidden_out = self.leaky_relu(hidden_from_input + hidden_from_hidden_t + hidden_from_hidden_i)
 
         return hidden_out
 
 
-class CRNN_t(nn.Module):
+class CRNN_t_i(nn.Module):
     def __init__(self, input_size, hidden_size, kernel_size, dilation, uni_direction=False):
         """
         Recurrent Convolutional RNN layer over time
@@ -46,7 +44,7 @@ class CRNN_t(nn.Module):
         :param kernel_size: the kernel size of CNN
         :param uni_direction: ...
         """
-        super(CRNN_t, self).__init__()
+        super(CRNN_t_i, self).__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.kernel_size = kernel_size
@@ -54,29 +52,33 @@ class CRNN_t(nn.Module):
         self.uni_direction = uni_direction
         self.crnn_cell = CRNNCell(self.input_size, self.hidden_size, self.kernel_size, self.dilation)
 
-    def forward(self, input):
+    def forward(self, input, hidden_i):
         """
-        :param input: the input from the previous layer, [num_seqs, batch_size, channel, width, height]
-        :return: hidden state, [num_seqs, batch_size, hidden_size, width, height]
+        Args:
+            input: [num_seqs, batch_size, channel, width, height]
+            hidden_i: [num_seqs, batch_size, hidden_size, width, height]
+
+        Returns:
+            [num_seqs, batch_size, hidden_size, width, height]
         """
         nt, nb, nc, nx, ny = input.shape
         hid_init = input.new_zeros([nb, self.hidden_size, nx, ny])
 
         # forward
         output = []
-        hidden = hid_init
+        hidden_t = hid_init
         for i in range(nt):  # past time frame
-            hidden = self.crnn_cell(input[i], hidden)
-            output.append(hidden)
+            hidden_t = self.crnn_cell(input[i], hidden_t, hidden_i[i])
+            output.append(hidden_t)
         output = torch.stack(output, dim=0)
 
         if not self.uni_direction:
             # backward
             output_b = []
-            hidden = hid_init
+            hidden_t = hid_init
             for i in range(nt):  # future time frame
-                hidden = self.crnn_cell(input[nt - i - 1], hidden)
-                output_b.append(hidden)
+                hidden_t = self.crnn_cell(input[nt - i - 1], hidden_t, hidden_i[nt - i - 1])
+                output_b.append(hidden_t)
             output_b = torch.stack(output_b[::-1], dim=0)
             output = output + output_b
 
@@ -92,7 +94,7 @@ class CRNN_V2(nn.Module):
                  uni_direction=False):
         """
         CRNN_V2
-        1. only use time connections, no iteration connections
+        1. only use CRNN_t_i
         2. dilation convolution
         3. leaky relu
         4. inner residual connection
@@ -104,10 +106,10 @@ class CRNN_V2(nn.Module):
         self.iteration = iteration
         self.uni_direction = uni_direction
 
-        self.crnn_t_1 = CRNN_t(input_size, hidden_size, kernel_size, 1, uni_direction)
-        self.crnn_t_2 = CRNN_t(hidden_size, hidden_size, kernel_size, dilation, uni_direction)
-        self.crnn_t_3 = CRNN_t(hidden_size, hidden_size, kernel_size, dilation, uni_direction)
-        self.crnn_t_4 = CRNN_t(hidden_size, hidden_size, kernel_size, dilation, uni_direction)
+        self.crnn_t_i_1 = CRNN_t_i(input_size, hidden_size, kernel_size, 1, uni_direction)
+        self.crnn_t_i_2 = CRNN_t_i(hidden_size, hidden_size, kernel_size, dilation, uni_direction)
+        self.crnn_t_i_3 = CRNN_t_i(hidden_size, hidden_size, kernel_size, dilation, uni_direction)
+        self.crnn_t_i_4 = CRNN_t_i(hidden_size, hidden_size, kernel_size, dilation, uni_direction)
         self.conv4_x = nn.Conv2d(hidden_size, input_size, kernel_size, padding='same')
         self.dcs = [DataConsistencyInKspace(norm='ortho') for _ in range(iteration)]
 
@@ -120,16 +122,29 @@ class CRNN_V2(nn.Module):
         """
         n_batch, n_ch, width, height, t = x.shape
 
+        hidden_last_iteration = dict()
+        hidden_last_iteration['crnn_t_i_1'] = x.new_zeros([t, n_batch, self.hidden_size, width, height])
+        hidden_last_iteration['crnn_t_i_2'] = x.new_zeros([t, n_batch, self.hidden_size, width, height])
+        hidden_last_iteration['crnn_t_i_3'] = x.new_zeros([t, n_batch, self.hidden_size, width, height])
+        hidden_last_iteration['crnn_t_i_4'] = x.new_zeros([t, n_batch, self.hidden_size, width, height])
+
         for i in range(self.iteration):
 
             x = x.permute(4, 0, 1, 2, 3)  # [batch_size, 2, width, height, t] -> [t, batch_size, 2, width, height]
 
-            out = self.crnn_t_1(x)
-            out = self.crnn_t_2(out) + out
-            out = self.crnn_t_3(out) + out
-            out = self.crnn_t_4(out) + out
+            hidden_last_iteration['crnn_t_i_1'] = self.crnn_t_i_1(x, hidden_last_iteration['crnn_t_i_1'])
+            hidden_last_iteration['crnn_t_i_2'] = self.crnn_t_i_2(
+                hidden_last_iteration['crnn_t_i_1'], hidden_last_iteration['crnn_t_i_2']
+            ) + hidden_last_iteration['crnn_t_i_1']
+            hidden_last_iteration['crnn_t_i_3'] = self.crnn_t_i_3(
+                hidden_last_iteration['crnn_t_i_2'], hidden_last_iteration['crnn_t_i_3']
+            ) + hidden_last_iteration['crnn_t_i_2']
+            hidden_last_iteration['crnn_t_i_4'] = self.crnn_t_i_4(
+                hidden_last_iteration['crnn_t_i_3'], hidden_last_iteration['crnn_t_i_4']
+            ) + hidden_last_iteration['crnn_t_i_3']
 
-            out = out.view(-1, self.hidden_size, width, height)  # -> [t * batch_size, hidden_size, width, height]
+            out = hidden_last_iteration['crnn_t_i_4']\
+                .view(-1, self.hidden_size, width, height)  # -> [t * batch_size, hidden_size, width, height]
             out = self.conv4_x(out)
             out = out.view(-1, n_batch, 2, width, height)  # -> [t, batch_size, 2, width, height]
 
