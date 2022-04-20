@@ -271,18 +271,26 @@ class LowRank(nn.Module):
 
         x = x.permute(0, 2, 3, 4, 1)  # -> [batch_size, width, height, n_seq, 2]
         x = torch.view_as_complex(x.contiguous())  # -> [batch_size, width, height, n_seq]
+        x = x.permute(0, 3, 1, 2)  # -> [batch_size, n_seq, width, height]
         x = x.reshape(batch_size, n_seq, width * height)  # -> [batch_size, n_seq, width * height]
 
         # SVD
         U, S, Vh = torch.linalg.svd(x, full_matrices=False)
+
         # threshold
         thres = torch.sigmoid(self.thres_coef) * S[..., 0:]
         S = F.relu(S - thres)
+
+        #         mask = torch.zeros_like(S)
+        #         mask[..., 0] = 1
+        #         S = mask * S
+
         # recover
         S = torch.diag_embed(S).type(x.dtype)
         x = U @ S @ Vh
 
         x = torch.view_as_real(x)  # -> [batch_size, n_seq, width * height, 2]
+        x = x.permute(0, 3, 2, 1)  # -> [batch_size, 2, width * height, n_seq]
         x = x.reshape(batch_size, 2, width, height, n_seq)
 
         return x
