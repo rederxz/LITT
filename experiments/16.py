@@ -198,7 +198,7 @@ if __name__ == '__main__':
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=2)
 
     # model, loss, optimizer
-    rec_net = CRNN_DS(sharing_size=7, uni_direction=args.uni_direction)
+    rec_net = CRNN_DS(sharing_size=5, uni_direction=args.uni_direction)
     criterion = torch.nn.MSELoss()
     optimizer = torch.optim.Adam(rec_net.parameters(), lr=args.lr, betas=(0.5, 0.999))
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, args.num_epoch)
