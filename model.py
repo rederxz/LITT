@@ -197,11 +197,11 @@ class DataAveraging(nn.Module):
         k = torch.view_as_real(k)  # -> [batch_size, t, width, height, 2]
         k = k.permute(0, 4, 1, 2, 3)  # -> [batch_size, 2, t, width, height]
 
-        k = k * mask
-        print('k')
-        print(k.permute(0, 1, 3, 4, 2))
-        print('mask')
-        print(mask.permute(0, 1, 3, 4, 2))
+        # k = k * mask
+        # print('k')
+        # print(k.permute(0, 1, 3, 4, 2))
+        # print('mask')
+        # print(mask.permute(0, 1, 3, 4, 2))
 
         if self.divide_by_mask:
             k_sum = torch.sum(k, dim=2, keepdim=True)
@@ -209,20 +209,20 @@ class DataAveraging(nn.Module):
             mask_sum = torch.clamp(mask_sum, min=1)
             k_avg = k_sum / mask_sum
 
-            print('k sum')
-            print(k_sum.permute(0, 1, 3, 4, 2))
-            print('mask sum')
-            print(mask_sum.permute(0, 1, 3, 4, 2))
-            print('k avg')
-            print(k_avg.permute(0, 1, 3, 4, 2))
+            # print('k sum')
+            # print(k_sum.permute(0, 1, 3, 4, 2))
+            # print('mask sum')
+            # print(mask_sum.permute(0, 1, 3, 4, 2))
+            # print('k avg')
+            # print(k_avg.permute(0, 1, 3, 4, 2))
         else:
             k_avg = torch.mean(k, dim=2, keepdim=True)
 
         # ensure data consistency
         k_avg = k * mask + k_avg * (1 - mask)  # though k_avg shrinks in time dim, but it will broadcast here
 
-        print('k dc')
-        print(k_avg.permute(0, 1, 3, 4, 2))
+        # print('k dc')
+        # print(k_avg.permute(0, 1, 3, 4, 2))
 
         k_avg = k_avg.permute(0, 2, 3, 4, 1)  # -> [batch_size, t, width, height, 2]
         k_avg = torch.view_as_complex(k_avg.contiguous())  # -> [batch_size, t, width, height]
