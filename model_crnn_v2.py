@@ -328,3 +328,70 @@ class CRNN_V2_1_3_1(nn.Module):
             x = self.dcs[i](out, k, m)
 
         return x
+
+
+class CRNN_V2_no_dilation(nn.Module):
+    def __init__(self, input_size=2,
+                 hidden_size=64,
+                 kernel_size=3,
+                 dilation=1,
+                 iteration=5,
+                 uni_direction=False):
+        """
+        CRNN_V2_no_dilation
+        1. leaky relu
+        """
+        super(CRNN_V2_no_dilation, self).__init__()
+        self.kernel_size = kernel_size
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.iteration = iteration
+        self.uni_direction = uni_direction
+
+        self.crnn_t_i = CRNN_t_i(input_size, hidden_size, kernel_size, 1, uni_direction)
+        self.crnn_i_1 = CRNN_i(hidden_size, hidden_size, kernel_size, dilation)
+        self.crnn_i_2 = CRNN_i(hidden_size, hidden_size, kernel_size, dilation)
+        self.crnn_i_3 = CRNN_i(hidden_size, hidden_size, kernel_size, dilation)
+        self.conv4_x = nn.Conv2d(hidden_size, input_size, kernel_size, padding='same')
+        self.dcs = [DataConsistencyInKspace(norm='ortho') for _ in range(iteration)]
+
+    def forward(self, x, k, m):
+        """
+        :param x: input in image domain, [batch_size, 2, width, height, t]
+        :param k: initially sampled elements in k-space, [batch_size, 2, width, height, t]
+        :param m: corresponding nonzero location, [batch_size, 2, width, height, t]
+        :return: reconstruction result, [batch_size, 2, width, height, t]
+        """
+        n_batch, n_ch, width, height, t = x.shape
+
+        hidden_last_iteration = dict()
+        hidden_last_iteration['crnn_t_i'] = x.new_zeros([t, n_batch, self.hidden_size, width, height])
+        hidden_last_iteration['crnn_i_1'] = x.new_zeros([t * n_batch, self.hidden_size, width, height])
+        hidden_last_iteration['crnn_i_2'] = x.new_zeros([t * n_batch, self.hidden_size, width, height])
+        hidden_last_iteration['crnn_i_3'] = x.new_zeros([t * n_batch, self.hidden_size, width, height])
+
+        for i in range(self.iteration):
+
+            x = x.permute(4, 0, 1, 2, 3)  # [batch_size, 2, width, height, t] -> [t, batch_size, 2, width, height]
+            hidden_last_iteration['crnn_t_i'] = self.crnn_t_i(x, hidden_last_iteration['crnn_t_i'])
+            out = hidden_last_iteration['crnn_t_i']\
+                .view(-1, self.hidden_size, width, height)  # -> [t * batch_size, hidden_size, width, height]
+            hidden_last_iteration['crnn_i_1'] = self.crnn_i_1(
+                out, hidden_last_iteration['crnn_i_1']
+            )
+            hidden_last_iteration['crnn_i_2'] = self.crnn_i_2(
+                hidden_last_iteration['crnn_i_1'], hidden_last_iteration['crnn_i_2']
+            )
+            hidden_last_iteration['crnn_i_3'] = self.crnn_i_3(
+                hidden_last_iteration['crnn_i_2'], hidden_last_iteration['crnn_i_3']
+            )
+            out = self.conv4_x(hidden_last_iteration['crnn_i_3'])
+            out = out.view(-1, n_batch, 2, width, height)  # -> [t, batch_size, 2, width, height]
+
+            out = out + x
+
+            out = out.permute(1, 2, 3, 4, 0)  # [t, batch_size, 2, width, height] -> [batch_size, 2, width, height, t]
+
+            x = self.dcs[i](out, k, m)
+
+        return x
