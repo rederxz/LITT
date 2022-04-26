@@ -1,4 +1,3 @@
-import os
 import pathlib
 
 import numpy as np
@@ -8,7 +7,6 @@ from skimage import transform as T
 from toolz import curry
 
 import compressed_sensing as cs
-import data
 
 
 def cut_data(input, block_size=(1, 1), cut_edge=None):
@@ -89,6 +87,13 @@ def data_aug(img, mask=None, block_size=None, rotation_xy=False, flip_t=False):
     return img if mask is None else (img, mask)
 
 
+def parse_path(data_dir, split_dir):
+    base_dir = (pathlib.Path(__file__).parent.absolute() / pathlib.Path(split_dir)).resolve()
+    mat_file_path = sorted([pathlib.Path(data_dir) / (x.name + '.mat') for x in base_dir.iterdir()])
+
+    return mat_file_path
+
+
 def cut_to_chunks(array, nt_network, overlap, nt_wait):
     """array: [t, x, y]"""
     chunks = list()
@@ -111,13 +116,6 @@ def cut_to_chunks(array, nt_network, overlap, nt_wait):
             chunks.append(array[i * nt_network:(i + 1) * nt_network])
 
     return chunks
-
-
-def parse_path(data_dir, split_dir):
-    base_dir = (pathlib.Path(__file__).parent.absolute() / pathlib.Path(split_dir)).resolve()
-    mat_file_path = sorted([pathlib.Path(data_dir) / (x.name + '.mat') for x in base_dir.iterdir()])
-
-    return mat_file_path
 
 
 def read_img_to_chunks(img_file_path,
