@@ -401,7 +401,7 @@ class LITT_v3(torch.utils.data.dataset.Dataset):
                 'mask': mask_tensor}
 
     def __len__(self):
-        return len(self.data_slice)
+        return len(self.img_chunks)
 
 
 def get_LITT_dataset(data_root, split, **kwargs):
