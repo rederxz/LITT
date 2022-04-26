@@ -376,7 +376,7 @@ class LITT_v3(torch.utils.data.dataset.Dataset):
 
     def __getitem__(self, idx):
         img_gnd = self.img_chunks[idx]  # [time, x, y]
-        if self.mask_chunks:
+        if self.mask_chunks is not None:
             mask = self.mask_chunks[idx]
         elif self.mask_func:
             mask = self.mask_func(img_gnd.shape)
