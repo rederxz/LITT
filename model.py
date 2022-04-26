@@ -1088,7 +1088,7 @@ class CRNN_RDS(CRNN):
             x = x.permute(4, 0, 1, 2, 3)  # [n_seq, batch, n_ch, width, height]
 
             # 1 layer of projection CNN
-            net['t%d_x0' % i] = self.proj_conv(x.view(-1, self.n_ch, width, height))
+            net['t%d_x0' % i] = self.proj_conv(x.reshape(-1, self.n_ch, width, height))
 
             # 3 layers of CRNN-i
             net['t%d_x1' % i] = self.relu(self.conv1_x(net['t%d_x0' % i]) + self.conv1_h(net['t%d_x1' % (i - 1)]))
