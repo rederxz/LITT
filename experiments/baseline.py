@@ -128,7 +128,7 @@ parser.add_argument('--sampled_lines', type=int, default=8)
 parser.add_argument('--uni_direction', action='store_true')
 parser.add_argument('--nt_network', type=int, default=6)
 parser.add_argument('--test_interval', type=int, default=20)
-parser.add_argument('--work_dir', type=str, default='/root/log/256_cs_8x_c8_cos_CRNN_baseline')
+parser.add_argument('--work_dir', type=str, default='/root/log/256_cs_8x_c8_cos_CRNN_baseline_v3')
 parser.add_argument('--debug', action='store_true')
 args = parser.parse_args()
 
