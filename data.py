@@ -376,7 +376,7 @@ class LITT_v3(torch.utils.data.dataset.Dataset):
 
     def __getitem__(self, idx):
         img_gnd = self.img_chunks[idx]  # [time, x, y]
-        if self.mask:
+        if self.mask_chunks:
             mask = self.mask_chunks[idx]
         elif self.mask_func:
             mask = self.mask_func(img_gnd.shape)
@@ -389,7 +389,7 @@ class LITT_v3(torch.utils.data.dataset.Dataset):
         img_u, k_u = cs.undersample(img_gnd, mask)
 
         # complex64 -> float32, [time, x, y] -> [time, x, y, 2] -> [2, x, y, time]
-        perm = (3, 1, 2, 0) if self.single_echo else (0, 4, 2, 3, 1)
+        perm = (3, 1, 2, 0)
         img_gnd_tensor = torch.view_as_real(torch.from_numpy(img_gnd)).float().permute(perm)
         img_u_tensor = torch.view_as_real(torch.from_numpy(img_u)).float().permute(perm)
         k_u_tensor = torch.view_as_real(torch.from_numpy(k_u)).float().permute(perm)
