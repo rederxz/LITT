@@ -156,12 +156,12 @@ print(vars(args))
 train_transform = data_aug(block_size=(256, 32), rotation_xy=False, flip_t=False)
 
 train_dataset = LITT_v3(img_dir=args.data_path,
-                        split_dir='data_small/train',
+                        split_dir='data/train',
                         nt_network=args.nt_network,
                         mask_func=cs.cartesian_mask(acc=args.acc, sample_n=args.sampled_lines),
                         transform=train_transform)
 test_dataset = LITT_v3(img_dir=args.data_path,
-                       split_dir='data_small/test',
+                       split_dir='data/test',
                        nt_network=args.nt_network,
                        mask_dir=args.mask_path)
 
