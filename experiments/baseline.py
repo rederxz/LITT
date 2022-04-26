@@ -32,6 +32,7 @@ def step_train(dataloader, model, criterion, optimizer, writer, epoch, **kwargs)
 
         optimizer.zero_grad()
         loss.backward()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
         optimizer.step()
 
         train_loss += loss.item()
@@ -52,6 +53,7 @@ def step_test(dataloader, model, criterion, work_dir, writer, epoch, **kwargs):
     base_mag_ssim, test_mag_ssim = 0, 0
     base_phase_rmse, test_phase_rmse = 0, 0
     test_batches = 0
+    cnt = 0
     model.eval()
     for batch in dataloader:
         with torch.no_grad():
@@ -77,14 +79,15 @@ def step_test(dataloader, model, criterion, work_dir, writer, epoch, **kwargs):
                                         for i in range(img_i.shape[0])])
             test_phase_rmse += np.mean([np.sqrt(cal_mse(np.angle(img_i[i, ...]), np.angle(pred_i[i, ...])))
                                         for i in range(img_i.shape[0])])
+            cnt += 1
 
     test_loss /= test_batches
-    base_psnr /= test_batches * 1  # "1" for iteration within each mini-batch  (batch_size == 1)
-    test_psnr /= test_batches * 1
-    base_mag_ssim /= test_batches * 1
-    test_mag_ssim /= test_batches * 1
-    base_phase_rmse /= test_batches * 1
-    test_phase_rmse /= test_batches * 1
+    base_psnr /= cnt
+    test_psnr /= cnt
+    base_mag_ssim /= cnt
+    test_mag_ssim /= cnt
+    base_phase_rmse /= cnt
+    test_phase_rmse /= cnt
 
     # save metrics
     print(time.strftime('%H:%M:%S') + ' ' + f'test'
@@ -105,16 +108,11 @@ def step_test(dataloader, model, criterion, work_dir, writer, epoch, **kwargs):
     torch.save(rec_net.state_dict(), os.path.join(work_dir, 'model.pth'))
 
     # save images
-    mag_diagram = np.concatenate([
-        abs(from_tensor_format(img_gnd.cpu().numpy()).squeeze())[-1],
-        abs(from_tensor_format(img_u.cpu().numpy()).squeeze())[-1],
-        abs(from_tensor_format(pred.cpu().numpy()).squeeze())[-1],
-    ], axis=1)
-    phase_diagram = np.concatenate([
-        np.angle(from_tensor_format(img_gnd.cpu().numpy()).squeeze())[-1],
-        np.angle(from_tensor_format(img_u.cpu().numpy()).squeeze())[-1],
-        np.angle(from_tensor_format(pred.cpu().numpy()).squeeze())[-1]
-    ], axis=1)
+    _img_gnd = from_tensor_format(img_gnd.cpu().numpy())[0, -1]
+    _img_u = from_tensor_format(img_u.cpu().numpy())[0, -1]
+    _pred = from_tensor_format(pred.cpu().numpy())[0, -1]
+    mag_diagram = np.concatenate([abs(_img_gnd), abs(_img_u), abs(_pred)], axis=1)
+    phase_diagram = np.concatenate([np.angle(_img_gnd), np.angle(_img_u), np.angle(_pred)], axis=1)
     writer.add_image('Viz/Magnitude', mag_diagram, epoch, dataformats='HW')
     writer.add_image('Viz/Phase', phase_diagram, epoch, dataformats='HW')
 
@@ -129,15 +127,14 @@ parser.add_argument('--acc', type=float, default=8.0)
 parser.add_argument('--sampled_lines', type=int, default=8)
 parser.add_argument('--uni_direction', action='store_true')
 parser.add_argument('--nt_network', type=int, default=6)
-parser.add_argument('--test_interval', type=int, default=10)
+parser.add_argument('--test_interval', type=int, default=20)
 parser.add_argument('--work_dir', type=str, default='/root/log/256_cs_8x_c8_cos_CRNN_baseline')
 parser.add_argument('--debug', action='store_true')
 args = parser.parse_args()
 
-# create work directory
-os.makedirs(args.work_dir, exist_ok=False)
-
 if not args.debug:
+    # create work directory
+    os.makedirs(args.work_dir, exist_ok=False)
     # redirect output to file
     log_file = open(os.path.join(args.work_dir, 'log.log'), 'w')
     sys.stdout = log_file
@@ -166,7 +163,7 @@ test_dataset = LITT_v3(img_dir=args.data_path,
                        mask_dir=args.mask_path)
 
 train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=2)
-test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=2)
+test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=8, shuffle=False, num_workers=2)
 
 # model, loss, optimizer
 rec_net = CRNN(uni_direction=args.uni_direction)
