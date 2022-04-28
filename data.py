@@ -45,7 +45,7 @@ def cut_data(input, block_size=(1, 1), cut_edge=None):
 
 
 @ curry
-def data_aug(img, mask=None, block_size=None, rotation_xy=False, flip_t=False):
+def data_aug(img, mask=None, block_size=None, rotation_xy=False, flip_t=False, cut_edge=(0, 32)):
     # FIXME in subsampling patterns (like cartesian), random crop of mask in both x and y direction may cause problem
     """
     apply data augmentation to a batch
@@ -54,6 +54,7 @@ def data_aug(img, mask=None, block_size=None, rotation_xy=False, flip_t=False):
     :param block_size: [int, int]
     :param rotation_xy: boolean
     :param flip_t: boolean
+    :param cut_edge: (int, int), cut unimportant edge area
     :return:
     """
     if mask is not None:
@@ -74,9 +75,9 @@ def data_aug(img, mask=None, block_size=None, rotation_xy=False, flip_t=False):
         assert img.shape[-2] >= block_size[0] and img.shape[-1] >= block_size[1]
 
         # cut unimportant edge area
-        img = cut_data(img, cut_edge=(0, 32))
+        img = cut_data(img, cut_edge=cut_edge)
         if mask is not None:
-            mask = cut_data(mask, cut_edge=(0, 32))
+            mask = cut_data(mask, cut_edge=cut_edge)
 
         start_x = np.random.randint(0, img.shape[-2] - block_size[0] + 1)
         start_y = np.random.randint(0, img.shape[-1] - block_size[1] + 1)
