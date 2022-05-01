@@ -36,7 +36,7 @@ def step_train(dataloader, model, criterion, optimizer, writer, epoch, **kwargs)
                                        img_u_l, output_h, output_o)
             img_u_l = img_u[..., i]
             output_o_c.append(output_o)
-        pred = torch.cat(output_o_c, dim=1)
+        pred = torch.cat(output_o_c, dim=-1)
 
         loss = criterion(pred, img_gnd)
 
@@ -80,7 +80,7 @@ def step_test(dataloader, model, criterion, work_dir, writer, epoch, **kwargs):
                                            img_u_l, output_h, output_o)
                 img_u_l = img_u[..., i]
                 output_o_c.append(output_o)
-            pred = torch.cat(output_o_c, dim=1)
+            pred = torch.cat(output_o_c, dim=-1)
 
             loss = criterion(pred, img_gnd)
 
