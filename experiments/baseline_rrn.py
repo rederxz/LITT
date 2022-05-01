@@ -31,10 +31,10 @@ def step_train(dataloader, model, criterion, optimizer, writer, epoch, **kwargs)
         output_h = None
         output_o = None
         output_o_c = list()
-        for i in range(img_u.shape[1]):  # iterate over t dimension
-            output_o, output_h = model(img_u[:, i], k_u[:, i], mask[:, i],
+        for i in range(img_u.shape[-1]):  # iterate over t dimension
+            output_o, output_h = model(img_u[..., i], k_u[..., i], mask[..., i],
                                        img_u_l, output_h, output_o)
-            img_u_l = img_u[:, i]
+            img_u_l = img_u[..., i]
             output_o_c.append(output_o)
         pred = torch.cat(output_o_c, dim=1)
 
@@ -75,10 +75,10 @@ def step_test(dataloader, model, criterion, work_dir, writer, epoch, **kwargs):
             output_h = None
             output_o = None
             output_o_c = list()
-            for i in range(img_u.shape[1]):  # iterate over t dimension
-                output_o, output_h = model(img_u[:, i], k_u[:, i], mask[:, i],
+            for i in range(img_u.shape[-1]):  # iterate over t dimension
+                output_o, output_h = model(img_u[..., i], k_u[..., i], mask[..., i],
                                            img_u_l, output_h, output_o)
-                img_u_l = img_u[:, i]
+                img_u_l = img_u[..., i]
                 output_o_c.append(output_o)
             pred = torch.cat(output_o_c, dim=1)
 
