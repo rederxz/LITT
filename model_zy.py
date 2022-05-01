@@ -65,9 +65,12 @@ class RRN(nn.Module):
 
         """
         n_b, n_ch, width, height = x.shape
-        x_l = x.new_zeros([n_b, n_ch, width, height])
-        h = x.new_zeros([n_b, self.n_h, width, height])
-        o = x.new_zeros([n_b, n_ch, width, height])
+        if x_l is None:
+            x_l = x.new_zeros([n_b, n_ch, width, height])
+        if h is None:
+            h = x.new_zeros([n_b, self.n_h, width, height])
+        if o is None:
+            o = x.new_zeros([n_b, n_ch, width, height])
 
         network_input = torch.cat([x, x_l, h, o], dim=1)
         hidden = self.conv_1(network_input)
