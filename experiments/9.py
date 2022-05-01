@@ -2,6 +2,8 @@ import argparse
 import os
 import sys
 
+import utils
+
 sys.path.append('../')
 import time
 import subprocess
@@ -12,10 +14,9 @@ import scipy.io as sio
 from torch.utils.tensorboard import SummaryWriter
 
 from data import get_LITT_dataset_v2, data_aug
-from metric import complex_psnr
-from model_vsr import CRNN
+from metrics import complex_psnr
+from model.model_vsr import CRNN
 from utils import from_tensor_format
-import compressed_sensing as cs
 
 
 def step_train(dataloader, model, criterion, optimizer, writer, epoch, **kwargs):
@@ -160,16 +161,16 @@ if __name__ == '__main__':
 
     train_dataset = get_LITT_dataset_v2(data_root=args.data_path, split='train',
                                         nt_network=args.nt_network,
-                                        mask_func=cs.cartesian_mask(acc=args.acc, sample_n=args.sampled_lines),
+                                        mask_func=utils.cs_cartesian_mask(acc=args.acc, sample_n=args.sampled_lines),
                                         img_resize=(args.img_size,) * 2,
                                         transform=train_transform)
     val_dataset = get_LITT_dataset_v2(data_root=args.data_path, split='val',
                                       nt_network=args.nt_network,
-                                      mask_func=cs.cartesian_mask(acc=args.acc, sample_n=args.sampled_lines),
+                                      mask_func=utils.cs_cartesian_mask(acc=args.acc, sample_n=args.sampled_lines),
                                       img_resize=(args.img_size,) * 2)
     test_dataset = get_LITT_dataset_v2(data_root=args.data_path, split='test',
                                        nt_network=args.nt_network,
-                                       mask_func=cs.cartesian_mask(acc=args.acc, sample_n=args.sampled_lines),
+                                       mask_func=utils.cs_cartesian_mask(acc=args.acc, sample_n=args.sampled_lines),
                                        img_resize=(args.img_size,) * 2)
 
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=2)

@@ -10,7 +10,7 @@ import scipy.io as sio
 import torch
 
 from data import get_LITT_dataset
-from model import CRNN
+from model.model_crnn import CRNN
 from utils import from_tensor_format
 
 

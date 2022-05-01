@@ -10,8 +10,8 @@ import scipy.io as sio
 from torch.utils.tensorboard import SummaryWriter
 
 from data import get_LITT_dataset, data_aug
-from metric import complex_psnr
-from model import CRNN
+from metrics import complex_psnr
+from model.model_crnn import CRNN
 from utils import from_tensor_format
 
 

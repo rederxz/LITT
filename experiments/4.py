@@ -11,8 +11,8 @@ import scipy.io as sio
 from torch.utils.tensorboard import SummaryWriter
 
 from data import get_LITT_dataset, data_aug
-from metric import complex_psnr
-from model import CRNN_IDC, i2k
+from metrics import complex_psnr
+from model.model_crnn import CRNN_IDC, i2k
 from utils import from_tensor_format
 
 

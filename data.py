@@ -6,7 +6,7 @@ from scipy.io import loadmat
 from skimage import transform as T
 from toolz import curry
 
-import compressed_sensing as cs
+import utils
 
 
 def cut_data(input, block_size=(1, 1), cut_edge=None):
@@ -195,7 +195,7 @@ class LITT(torch.utils.data.dataset.Dataset):
             if mask_file_path is not None:
                 mask = loadmat(mask_file_path[idx])['mask'].reshape(mFFE_img_complex.shape)
             else:
-                mask = cs.cartesian_mask(mFFE_img_complex.shape, acc=self.acc, sample_n=self.sample_n)
+                mask = utils.cs_cartesian_mask(mFFE_img_complex.shape, acc=self.acc, sample_n=self.sample_n)
 
             if nt_wait > 0:  # the preparation stage
                 assert nt_wait < nt_network, f'nt_wait({nt_wait}) must be smaller than nt_network({nt_network})'
@@ -224,7 +224,7 @@ class LITT(torch.utils.data.dataset.Dataset):
         if self.transform is not None:
             img_gnd, mask = self.transform(img_gnd, mask)
 
-        img_u, k_u = cs.undersample(img_gnd, mask)
+        img_u, k_u = utils.undersample(img_gnd, mask)
 
         # complex64 -> float32, [(echo, )time, x, y] -> [(echo, )time, x, y, 2] -> [(echo,) 2, x, y, time]
         perm = (3, 1, 2, 0) if self.single_echo else (0, 4, 2, 3, 1)
@@ -268,7 +268,7 @@ class LITT_v2(torch.utils.data.dataset.Dataset):
             assert len(mat_file_path) == len(mask_file_path)
         assert not (mask_func is None and mask_file_path is None)
         assert not (mask_func is not None and mask_file_path is not None)
-        self.mask_func = cs.cartesian_mask(acc=6.0, sample_n=8) if mask_func is None else mask_func
+        self.mask_func = utils.cs_cartesian_mask(acc=6.0, sample_n=8) if mask_func is None else mask_func
 
         aggregate = 0
         self.data_slice = list()
@@ -329,7 +329,7 @@ class LITT_v2(torch.utils.data.dataset.Dataset):
         if self.transform is not None:
             img_gnd, mask = self.transform(img_gnd, mask)
 
-        img_u, k_u = cs.undersample(img_gnd, mask)
+        img_u, k_u = utils.undersample(img_gnd, mask)
 
         # complex64 -> float32, [(echo, )time, x, y] -> [(echo, )time, x, y, 2] -> [(echo,) 2, x, y, time]
         perm = (3, 1, 2, 0) if self.single_echo else (0, 4, 2, 3, 1)
@@ -387,7 +387,7 @@ class LITT_v3(torch.utils.data.dataset.Dataset):
         if self.transform is not None:
             img_gnd, mask = self.transform(img_gnd, mask)
 
-        img_u, k_u = cs.undersample(img_gnd, mask)
+        img_u, k_u = utils.undersample(img_gnd, mask)
 
         # complex64 -> float32, [time, x, y] -> [time, x, y, 2] -> [2, x, y, time]
         perm = (3, 1, 2, 0)
