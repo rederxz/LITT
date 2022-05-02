@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from dcn import DeformableConv2d
+from .dcn import DeformableConv2d
 
 
 def i2k(x):
@@ -823,13 +823,13 @@ class CRNNcell_DFM(CRNNcell):
     def __init__(self, input_size, hidden_size, kernel_size, multi_hidden_t=1):
         super().__init__(input_size, hidden_size, kernel_size, multi_hidden_t)
         # image2hidden conv
-        self.i2h = DeformableConv2d(input_size, hidden_size, kernel_size, padding=self.kernel_size // 2)
+        self.i2h = dcn.DeformableConv2d(input_size, hidden_size, kernel_size, padding=self.kernel_size // 2)
         # hidden(from the neighbour frame)2hidden conv
         self.h2h = nn.ModuleList()
         for i in range(multi_hidden_t):
-            self.h2h.append(DeformableConv2d(hidden_size, hidden_size, kernel_size, padding=self.kernel_size // 2))
+            self.h2h.append(dcn.DeformableConv2d(hidden_size, hidden_size, kernel_size, padding=self.kernel_size // 2))
         # hidden(from the previous iter)2hidden conv
-        self.ih2ih = DeformableConv2d(hidden_size, hidden_size, kernel_size, padding=self.kernel_size // 2)
+        self.ih2ih = dcn.DeformableConv2d(hidden_size, hidden_size, kernel_size, padding=self.kernel_size // 2)
 
 
 class CRNN_t_i_DFM(CRNN_t_i):

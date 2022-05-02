@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from model_crnn import DataConsistencyInKspace
+from .model_crnn import DataConsistencyInKspace
 
 
 class CRNNcell(nn.Module):
