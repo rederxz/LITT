@@ -12,7 +12,7 @@ import scipy.io as sio
 from torch.utils.tensorboard import SummaryWriter
 
 from data import LITT_v3
-from model.model_zy import RRN
+from model.model_crnn import CRNN
 from utils import from_tensor_format
 
 
@@ -80,7 +80,7 @@ test_dataset = LITT_v3(img_dir=args.data_path,
 test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=2)
 
 # model & device
-rec_net = RRN()
+rec_net = CRNN()
 if torch.cuda.is_available():
     rec_net = rec_net.cuda()
     rec_net.load_state_dict(torch.load(args.model_path, map_location=torch.device('cuda')))
