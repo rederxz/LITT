@@ -76,7 +76,7 @@ print(vars(args))
 
 # data, each sample [batch_size, 2, x, y, time]
 test_dataset = LITT_v3(img_dir=args.data_path,
-                       split_dir='data/test',
+                       split_dir='sub_ds_split/test',
                        nt_network=1,
                        mask_dir=args.mask_path)
 
