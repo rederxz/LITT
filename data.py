@@ -114,7 +114,7 @@ def cut_to_chunks(array, nt_network, overlap, nt_wait):
             chunks.append(array[total_t - nt_network:total_t])
     else:  # ... with overlapping
         for i in range(total_t - (nt_network - 1)):
-            chunks.append(array[i * nt_network:(i + 1) * nt_network])
+            chunks.append(array[i:i + nt_network])
 
     return chunks
 
