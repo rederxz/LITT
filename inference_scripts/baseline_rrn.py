@@ -46,7 +46,7 @@ def step_inference(dataloader, model, work_dir, **kwargs):
     sio.savemat(os.path.join(work_dir, 'test_result.mat'),
                 {'im_grd': np.concatenate(img_gnd_all), 'im_und': np.concatenate(img_u_all),
                  'mask': np.concatenate(mask_all), 'im_pred': np.concatenate(img_rec_all),
-                 'recon_time_all': np.array(t_rec_all)})
+                 'recon_time_all': np.array(t_rec_all), 'test_nt_wait': 0})
 
 
 parser = argparse.ArgumentParser()
