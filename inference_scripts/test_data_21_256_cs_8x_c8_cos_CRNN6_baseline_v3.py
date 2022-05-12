@@ -48,7 +48,7 @@ def step_inference(dataloader, model):
 parser = argparse.ArgumentParser()
 parser.add_argument('--mat_path', type=str, default='/root/autodl-nas/test_data/test_data_21/res_001_single.mat')
 parser.add_argument('--model_path', type=str, default='/root/log/256_cs_8x_c8_cos_CRNN_baseline_v3/model.pth')
-parser.add_argument('--work_dir', type=str, default='/root/inference_log/test_data_21_256_cs_8x_c8_cos_CRNN6_baseline_v3')
+parser.add_argument('--work_dir', type=str, default='/root/autodl-nas/inference_log/test_data_21_256_cs_8x_c8_cos_CRNN6_baseline_v3')
 parser.add_argument('--debug', action='store_true')
 args = parser.parse_args()
 
@@ -75,7 +75,6 @@ with h5py.File(args.mat_path, 'r') as mat_file:
     img = np.array(mat_file['combined_img']).transpose()
     img = img['real'] + img['imag'] * 1j
     mask = np.array(mat_file['combined_mask']).transpose()
-    mask = mask * (1 + 1j)
 print(f'img shape: {img.shape}')
 
 # model & device
@@ -87,15 +86,12 @@ else:
     rec_net.load_state_dict(torch.load(args.model_path, map_location=torch.device('cpu')))
 
 # inference
-im_grd_holder = np.zeros_like(img)
-im_und_holder = np.zeros_like(img)
-mask_holder = np.zeros_like(img)
-im_pred_holder = np.zeros_like(img)
-recon_time_all_holder = np.zeros_like(img)
-
 _, _, z_total, coil_total, _ = img.shape
-for z in z_total:
-    for coil in coil_total:
+
+im_grd_holder, im_und_holder, mask_holder, im_pred_holder, recon_time_all_holder = list(), list(), list(), list(), list()
+for z in range(z_total):
+    result_of_all_coil = list()
+    for coil in range(coil_total):
         # build dataset and dataloader for current z and coil
         test_dataset = LITT_from_np_array(img[:, :, z, coil],
                                           mask[:, :, z, coil],
@@ -107,16 +103,18 @@ for z in z_total:
         result = step_inference(dataloader=test_loader, model=rec_net)  # result for current z and coil
 
         # collect results
-        im_grd_holder[:, :, z, coil] = result['im_grd']  # [t, x, y]
-        im_und_holder[:, :, z, coil] = result['im_und']
-        mask_holder[:, :, z, coil] = result['mask']
-        im_pred_holder[:, :, z, coil] = result['im_pred']
-        recon_time_all_holder[:, :, z, coil] = result['recon_time_all']
+        result_of_all_coil.append(result)
+
+    im_grd_holder.append(np.stack([_['im_grd'] for _ in result_of_all_coil], axis=-1))  # [t, x, y, coil]
+    im_und_holder.append(np.stack([_['im_und'] for _ in result_of_all_coil], axis=-1))
+    mask_holder.append(np.stack([_['mask'] for _ in result_of_all_coil], axis=-1))
+    im_pred_holder.append(np.stack([_['im_pred'] for _ in result_of_all_coil], axis=-1))
+    recon_time_all_holder.append(np.stack([_['recon_time_all'] for _ in result_of_all_coil], axis=-1))
 
 sio.savemat(os.path.join(args.work_dir, 'test_result.mat'),
-            {'im_grd': im_grd_holder,
-             'im_und': im_und_holder,
-             'mask': mask_holder,
-             'im_pred': im_pred_holder,
-             'recon_time_all': recon_time_all_holder,
+            {'im_grd': np.stack(im_grd_holder, axis=-2),  # [t, x, t, z, coil]
+             'im_und': np.stack(im_und_holder, axis=-2),
+             'mask': np.stack(mask_holder, axis=-2),
+             'im_pred': np.stack(im_pred_holder, axis=-2),
+             'recon_time_all': np.stack(recon_time_all_holder, axis=-2),
              'test_nt_wait': 0})
