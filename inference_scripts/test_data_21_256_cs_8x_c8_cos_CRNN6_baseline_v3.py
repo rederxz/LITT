@@ -112,7 +112,7 @@ for z in range(z_total):
     recon_time_all_holder.append(np.stack([_['recon_time_all'] for _ in result_of_all_coil], axis=-1))
 
 sio.savemat(os.path.join(args.work_dir, 'test_result.mat'),
-            {'im_grd': np.stack(im_grd_holder, axis=-2),  # [t, x, t, z, coil]
+            {'im_grd': np.stack(im_grd_holder, axis=-2),  # [t, x, y, z, coil]
              'im_und': np.stack(im_und_holder, axis=-2),
              'mask': np.stack(mask_holder, axis=-2),
              'im_pred': np.stack(im_pred_holder, axis=-2),
