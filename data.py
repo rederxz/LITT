@@ -96,7 +96,7 @@ def parse_path(data_dir, split_dir):
 
 
 def cut_to_chunks(array, nt_network, overlap, nt_wait):
-    """array: [t, x, y]"""
+    """array: shape [t, ...]"""
     chunks = list()
 
     if nt_wait > 0:  # the preparation stage
@@ -104,7 +104,7 @@ def cut_to_chunks(array, nt_network, overlap, nt_wait):
         for i in range(nt_wait, nt_network):
             chunks.append(array[:i])
 
-    total_t = array.shape[-3]
+    total_t = array.shape[0]
 
     if not overlap:  # slice the data along time dim according to nt_network with no overlapping
         complete_slice = total_t // nt_network
@@ -403,6 +403,106 @@ class LITT_v3(torch.utils.data.dataset.Dataset):
 
     def __len__(self):
         return len(self.img_chunks)
+
+
+class LITT_from_np_array(torch.utils.data.dataset.Dataset):
+    def __init__(self,
+                 img,
+                 mask,
+                 nt_network,
+                 transform=None,
+                 overlap=False,
+                 nt_wait=0):
+        """
+        Dataset from numpy array, single z, single coil
+        Args:
+            img: [x, y, t]
+            mask: [x, y, t]
+        """
+        super(LITT_from_np_array, self).__init__()
+
+        img = np.moveaxis(img, -1, 0)  # -> [t, x, y]
+        mask = np.moveaxis(mask, -1, 0)
+        img_chunks = cut_to_chunks(img, nt_network, overlap, nt_wait)
+        mask_chunks = cut_to_chunks(mask, nt_network, overlap, nt_wait)
+        self.img_chunks = np.stack(img_chunks, axis=0)  # ->[n, t, x, y]
+        self.mask_chunks = np.stack(mask_chunks, axis=0)
+
+        self.transform = transform
+
+    def __getitem__(self, idx):
+        img_gnd = self.img_chunks[idx]  # -> [t, x, y]
+        mask = self.mask_chunks[idx]
+
+        if self.transform is not None:
+            img_gnd, mask = self.transform(img_gnd, mask)
+
+        img_u, k_u = utils.undersample(img_gnd, mask)
+
+        # complex64 -> float32, [t, x, y] -> [t, x, y, 2] -> [2, x, y, t]
+        perm = (-1, 1, 2, 0)
+        img_gnd_tensor = torch.view_as_real(torch.from_numpy(img_gnd)).float().permute(perm)
+        img_u_tensor = torch.view_as_real(torch.from_numpy(img_u)).float().permute(perm)
+        k_u_tensor = torch.view_as_real(torch.from_numpy(k_u)).float().permute(perm)
+        mask_tensor = torch.view_as_real(torch.from_numpy(mask * (1 + 1j))).float().permute(perm)
+
+        return {'img_gnd': img_gnd_tensor,
+                'img_u': img_u_tensor,
+                'k_u': k_u_tensor,
+                'mask': mask_tensor}
+
+    def __len__(self):
+        return len(self.img_chunks)
+
+
+# class LITT_from_np_array_mz_mc(torch.utils.data.dataset.Dataset):
+#     def __init__(self,
+#                  img,
+#                  mask,
+#                  nt_network,
+#                  transform=None,
+#                  overlap=False,
+#                  nt_wait=0):
+#         """
+#         Dataset from numpy array, multi_z, multi_coil
+#         Args:
+#             img: [x, y, z, coil, t]
+#             mask: [x, y, z, coil, t]
+#         """
+#         super(LITT_from_np_array_mz_mc, self).__init__()
+#
+#         img = np.transpose(img, (4, 2, 3, 0, 1))  # -> [t, z, coil, x, y]
+#         mask = np.transpose(mask, (4, 2, 3, 0, 1))
+#         img_chunks = cut_to_chunks(img, nt_network, overlap, nt_wait)
+#         mask_chunks = cut_to_chunks(mask, nt_network, overlap, nt_wait)
+#         self.img_chunks = np.stack(img_chunks, axis=0)  # ->[n, t, z, coil, x, y]
+#         self.mask_chunks = np.stack(mask_chunks, axis=0)
+#
+#         self.transform = transform
+#
+#     def __getitem__(self, idx):
+#         img_gnd = self.img_chunks[idx]  # -> [t, z, coil, x, y]
+#         mask = self.mask_chunks[idx]
+#
+#         if self.transform is not None:
+#             img_gnd, mask = self.transform(img_gnd, mask)
+#
+#         img_u, k_u = utils.undersample(img_gnd, mask)
+#
+#         # complex64 -> float32, [t, z, coil, x, y] -> [t, z, coil, x, y, 2] -> [z, coil, 2, x, y, t]
+#         perm = (-1, 0, 1, -3, -2, -4)
+#         img_gnd_tensor = torch.view_as_real(torch.from_numpy(img_gnd)).float().permute(perm)
+#         img_u_tensor = torch.view_as_real(torch.from_numpy(img_u)).float().permute(perm)
+#         k_u_tensor = torch.view_as_real(torch.from_numpy(k_u)).float().permute(perm)
+#         mask_tensor = torch.view_as_real(torch.from_numpy(mask * (1 + 1j))).float().permute(perm)
+#
+#         return {'img_gnd': img_gnd_tensor,
+#                 'img_u': img_u_tensor,
+#                 'k_u': k_u_tensor,
+#                 'mask': mask_tensor}
+#
+#     def __len__(self):
+#         return len(self.img_chunks)
 
 
 def get_LITT_dataset(data_root, split, **kwargs):
