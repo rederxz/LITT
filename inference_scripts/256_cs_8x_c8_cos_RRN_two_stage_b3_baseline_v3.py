@@ -53,7 +53,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--data_path', type=str, default='/root/LITT_data')
 parser.add_argument('--mask_path', type=str, default='/root/LITT_mask_8x_c8')
 parser.add_argument('--model_path', type=str, default='/root/log/256_cs_8x_c8_cos_RRN_two_stage_b3/model.pth')
-parser.add_argument('--work_dir', type=str, default='/root/inference_log/256_cs_8x_c8_cos_RRN_two_stage_b3_baseline_v3')
+parser.add_argument('--work_dir', type=str, default='/root/autodl-nas/inference_log/256_cs_8x_c8_cos_RRN_two_stage_b3_baseline_v3')
 parser.add_argument('--debug', action='store_true')
 args = parser.parse_args()
 
