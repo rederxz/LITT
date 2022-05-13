@@ -1,10 +1,10 @@
 import argparse
 import os
 import sys
+sys.path.append('../')
 
 import utils
 
-sys.path.append('../')
 import time
 import subprocess
 
@@ -174,12 +174,12 @@ print(vars(args))
 train_transform = data_aug(block_size=(256, 32), rotation_xy=False, flip_t=False)
 
 train_dataset = LITT_v3(img_dir=args.data_path,
-                        split_dir='data/train',
+                        split_dir='sub_ds_split/train',
                         nt_network=args.nt_network,
                         mask_func=utils.cs_cartesian_mask(acc=args.acc, sample_n=args.sampled_lines),
                         transform=train_transform)
 test_dataset = LITT_v3(img_dir=args.data_path,
-                       split_dir='data/test',
+                       split_dir='sub_ds_split/test',
                        nt_network=args.nt_network,
                        mask_dir=args.mask_path)
 
