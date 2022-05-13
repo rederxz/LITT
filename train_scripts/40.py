@@ -149,7 +149,7 @@ parser.add_argument('--acc', type=float, default=8.0)
 parser.add_argument('--sampled_lines', type=int, default=8)
 parser.add_argument('--nt_network', type=int, default=10)
 parser.add_argument('--test_interval', type=int, default=20)
-parser.add_argument('--work_dir', type=str, default='/root/log/256_cs_8x_c8_cos_RRN_two_stage_b3')
+parser.add_argument('--work_dir', type=str, default='/root/log/256_cs_8x_c8_cos_RRN_two_stage_v2_b3')
 parser.add_argument('--debug', action='store_true')
 args = parser.parse_args()
 
