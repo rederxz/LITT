@@ -436,3 +436,109 @@ class RRN_relay(nn.Module):
         output_o = self.dc(self.conv_o(hidden), k, m)
 
         return output_o
+
+
+class ChannelAttention(nn.Module):
+    def __init__(self, in_planes, ratio=16):
+        super(ChannelAttention, self).__init__()
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        self.max_pool = nn.AdaptiveMaxPool2d(1)
+
+        self.fc = nn.Sequential(nn.Conv2d(in_planes, in_planes // 16, 1, bias=False),
+                                nn.ReLU(),
+                                nn.Conv2d(in_planes // 16, in_planes, 1, bias=False))
+        self.sigmoid = nn.Sigmoid()
+
+    def forward(self, x):
+        avg_out = self.fc(self.avg_pool(x))
+        max_out = self.fc(self.max_pool(x))
+        out = avg_out + max_out
+        return self.sigmoid(out)
+
+
+class SpatialAttention(nn.Module):
+    def __init__(self, kernel_size=7):
+        super(SpatialAttention, self).__init__()
+
+        self.conv1 = nn.Conv2d(2, 1, kernel_size, padding=kernel_size // 2, bias=False)
+        self.sigmoid = nn.Sigmoid()
+
+    def forward(self, x):
+        avg_out = torch.mean(x, dim=1, keepdim=True)
+        max_out, _ = torch.max(x, dim=1, keepdim=True)
+        x = torch.cat([avg_out, max_out], dim=1)
+        x = self.conv1(x)
+        return self.sigmoid(x)
+
+
+class AttentionFuse(nn.Module):
+    def __init__(self, n_h):
+        super(AttentionFuse, self).__init__()
+
+        self.ca = ChannelAttention(n_h * 2)
+        self.sa = SpatialAttention()
+
+    def forward(self, hidden, last_hidden):
+        union = torch.cat([hidden, last_hidden], dim=1)
+        c_att = self.ca(union)
+        union = c_att * union
+        s_att = self.sa(union)
+        hidden = hidden * (1 - s_att) + last_hidden * s_att
+
+        return hidden
+
+
+class RRN_att_fuse(nn.Module):
+    def __init__(self, n_ch=2, n_h=64, n_blocks=5):
+        """
+        Args:
+            n_ch: input channel
+            n_h: hidden size
+        """
+        super(RRN_att_fuse, self).__init__()
+        self.n_ch = n_ch
+        self.n_h = n_h
+        self.n_blocks = n_blocks
+
+        # feature extraction stage
+        self.s1_conv = nn.Conv2d(n_ch, n_h, 3, padding='same')
+        self.s1_residual_blocks = make_layer(lambda: ResidualBlock_noBN(n_f=n_h), n_blocks)
+
+        # att module
+        self.att_fuse = AttentionFuse(n_h)
+
+        # reconstruction stage
+        self.s2_residual_blocks = make_layer(lambda: ResidualBlock_noBN(n_f=n_h), n_blocks)
+        self.s2_conv_o = nn.Conv2d(n_h, n_ch, 3, padding='same')
+        self.s2_dc = DataConsistencyInKspace(norm='ortho')
+
+        self.relu = nn.ReLU(inplace=True)
+
+    def forward(self, x, k, m, h=None):
+        """
+        Args:
+            x: the aliased image, the current and the last frame [batch_size, 2, width, height]
+            k: initially sampled elements in k-space, [batch_size, 2, width, height]
+            m: corresponding nonzero location, [batch_size, 2, width, height]
+            x_l: the last aliased image, the current and the last frame [batch_size, 2, width, height]
+            h: hidden from the last frame,  [batch_size, hidden_size, width, height]
+            o: reconstruction result of the last frame, [batch_size, 2, width, height]
+
+        Returns:
+            reconstruction result, [batch_size, 2, width, height]
+            output_hidden, [batch_size, hidden_size, width, height]
+
+        """
+        n_b, n_ch, width, height = x.shape
+        if h is None:
+            h = x.new_zeros([n_b, self.n_h, width, height])
+
+        hidden = self.relu(self.s1_conv(x))
+        hidden = self.s1_residual_blocks(hidden)
+
+        hidden_fuse = self.att_fuse(hidden, h)
+
+        hidden = self.s2_residual_blocks(hidden_fuse)
+        output_o = self.s2_dc(self.s2_conv_o(hidden), k, m)
+
+        return output_o, hidden_fuse
