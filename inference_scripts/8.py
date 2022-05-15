@@ -51,7 +51,7 @@ def step_inference(dataloader, model):
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--mat_path', type=str, default='/root/autodl-nas/test_data/test_data_23/res_106_single.mat')
-parser.add_argument('--model_path', type=str, default='/root/log/256_cs_6x_c8_cos_RRN_baseline_v3/model.pth')
+parser.add_argument('--model_path', type=str, default='/root/log/42/model.pth')
 parser.add_argument('--work_dir', type=str, default='/root/autodl-nas/inference_log/test_data_23_256_cs_6x_c8_cos_RRN_baseline_v3')
 parser.add_argument('--debug', action='store_true')
 args = parser.parse_args()
