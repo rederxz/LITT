@@ -390,3 +390,49 @@ class RRN_multi_stage(nn.Module):
         output_h = self.relu(self.s5_conv_h(hidden))
 
         return output_o, output_h
+
+
+class RRN_relay(nn.Module):
+    def __init__(self, n_ch=2, n_h=64, n_blocks=5):
+        """
+        Args:
+            n_ch: input channel
+            n_h: hidden size
+        """
+        super(RRN_relay, self).__init__()
+        self.n_ch = n_ch
+        self.n_h = n_h
+        self.n_blocks = n_blocks
+
+        self.conv_1 = nn.Conv2d(n_ch, n_h, 3, padding='same')
+        self.residual_blocks = make_layer(lambda: ResidualBlock_noBN(n_f=n_h), n_blocks)
+        self.conv_o = nn.Conv2d(n_h, n_ch, 3, padding='same')
+        self.relu = nn.ReLU(inplace=True)
+
+        self.relay_dc = DataConsistencyInKspace(norm='ortho')
+        self.dc = DataConsistencyInKspace(norm='ortho')
+
+    def forward(self, x, k, m, o=None):
+        """
+        Args:
+            x: the aliased image, the current and the last frame [batch_size, 2, width, height]
+            k: initially sampled elements in k-space, [batch_size, 2, width, height]
+            m: corresponding nonzero location, [batch_size, 2, width, height]
+            o: reconstruction result of the last frame, [batch_size, 2, width, height]
+
+        Returns:
+            reconstruction result, [batch_size, 2, width, height]
+            output_hidden, [batch_size, hidden_size, width, height]
+
+        """
+        n_b, n_ch, width, height = x.shape
+        if o is None:
+            o = x.new_zeros([n_b, n_ch, width, height])
+
+        o = self.relay_dc(o, k, m)  # relay step
+
+        hidden = self.relu(self.conv_1(o))
+        hidden = self.residual_blocks(hidden)
+        output_o = self.dc(self.conv_o(hidden), k, m)
+
+        return output_o
