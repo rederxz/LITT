@@ -78,7 +78,7 @@ print(vars(args))
 test_dataset = LITT_v3(img_dir=args.data_path,
                        split_dir='sub_ds_split/test',
                        nt_network=1,
-                       mask_func=utils.low_resolution_cartesian_mask(acc=args.acc))
+                       mask_func=utils.low_resolution_cartesian_mask(acc=8.0))
 
 test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=2)
 
