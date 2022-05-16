@@ -317,6 +317,29 @@ def cs_cartesian_mask(shape, acc, sample_n=10, centred=False):
     return mask
 
 
+@ curry
+def low_resolution_cartesian_mask(shape, acc, centred=False):
+    """
+    shape: tuple - of form (..., nx, ny)
+    acc: float - doesn't have to be integer 4, 8, etc..
+    """
+    N, Nx, Ny = int(np.prod(shape[:-2])), shape[-2], shape[-1]
+
+    sample_n = int(Nx / acc)
+
+    mask = np.zeros((N, Nx))
+    mask[:, Nx//2-sample_n//2:Nx//2+sample_n//2] = 1
+
+    mask = np.repeat(mask[..., None], repeats=Ny, axis=-1)
+
+    mask = mask.reshape(shape)
+
+    if not centred:
+        mask = ifftshift(mask, axes=(-1, -2))
+
+    return mask
+
+
 def undersample(x, mask, centred=False, norm='ortho', noise=0):
     '''
     Undersample x. FFT2 will be applied to the last 2 axis
