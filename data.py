@@ -63,13 +63,13 @@ def data_aug(img, mask=None, block_size=None, rotation_xy=False, flip_t=False, c
     if rotation_xy and np.rand.random() > 0.5:
         k = np.random.randint(0, 4)
         img = np.rot90(img, k=k, axes=(-2, -1))
-        if mask is not None:
-            mask = np.rot90(mask, k=k, axes=(-2, -1))  # here we also rotate mask the same angle
+        # if mask is not None:
+        #     mask = np.rot90(mask, k=k, axes=(-2, -1))  # here we also rotate mask the same angle
 
     if flip_t and np.rand.random() > 0.5:
         img = img[..., ::-1, :, :]
-        if mask is not None:
-            mask = mask[..., ::-1, :, :]
+        # if mask is not None:
+        #     mask = mask[..., ::-1, :, :]
 
     if block_size is not None:
         assert img.shape[-2] >= block_size[0] and img.shape[-1] >= block_size[1]
