@@ -1,3 +1,5 @@
+import math
+
 import numpy as np
 from numpy.fft import fftshift, fft, ifftshift, ifft, fft2, ifft2
 from numpy.lib.stride_tricks import as_strided
@@ -249,10 +251,12 @@ def kt_blast_cartesian_mask(shape, acc, sample_n=10, centred=False):
     if sample_n:
         mask[..., Nx // 2 - sample_n // 2: Nx // 2 + sample_n // 2] = 1
 
+    step = int((acc + 1) // 2) if acc % 2 == 1 else math.floor(acc / 7) * 2 + 1
+
     for i in range(N):
         start = np.random.randint(0, chunk_size)
         for j in range(Nt):
-            mask[i, j, (start + j) % chunk_size::chunk_size] = 1
+            mask[i, j, (start + j * step) % chunk_size::chunk_size] = 1
 
     mask = np.repeat(mask[..., None], repeats=Ny, axis=-1)
 
