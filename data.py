@@ -85,6 +85,10 @@ def data_aug(img, mask=None, block_size=None, rotation_xy=False, flip_t=False, c
         if mask is not None:
             mask = mask[..., start_x: start_x + block_size[0], start_y: start_y + block_size[1]]
 
+    img = img.copy()
+    if mask is not None:
+        mask = mask.copy()
+
     return img if mask is None else (img, mask)
 
 
