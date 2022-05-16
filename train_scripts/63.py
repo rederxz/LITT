@@ -180,7 +180,7 @@ train_dataset = LITT_v3(img_dir=args.data_path,
 test_dataset = LITT_v3(img_dir=args.data_path,
                        split_dir='sub_ds_split/test',
                        nt_network=args.nt_network,
-                       mask_dir=args.mask_path)
+                       mask_func=utils.low_resolution_cartesian_mask(acc=args.acc))
 
 train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=2)
 test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=8, shuffle=False, num_workers=2)
