@@ -48,7 +48,7 @@ def step_inference(dataloader, model, work_dir, **kwargs):
 parser = argparse.ArgumentParser()
 parser.add_argument('--data_path', type=str, default='/root/LITT_data')
 parser.add_argument('--mask_path', type=str, default='/root/LITT_mask_6x_c8')
-parser.add_argument('--model_path', type=str, default='/root/log/68/model.pth')
+parser.add_argument('--model_path', type=str, default='/root/log/69/model.pth')
 parser.add_argument('--work_dir', type=str, default='/root/inference_log/28')
 parser.add_argument('--debug', action='store_true')
 args = parser.parse_args()
