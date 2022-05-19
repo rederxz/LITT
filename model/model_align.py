@@ -77,10 +77,6 @@ class Encoder(nn.Module):
         fea_lr_2x_up = F.interpolate(fea_lr_2x, size=fea_lr_1x.shape[-2:], mode='bilinear', align_corners=False)
         fea_lr_4x_up = F.interpolate(fea_lr_4x, size=fea_lr_1x.shape[-2:], mode='bilinear', align_corners=False)
 
-        print(fea_lr_1x.shape)
-        print(fea_lr_2x_up.shape)
-        print(fea_lr_4x_up.shape)
-
         out = self.pyramid_fuse_conv(torch.cat([fea_lr_1x, fea_lr_2x_up, fea_lr_4x_up], dim=1))
 
         return out
