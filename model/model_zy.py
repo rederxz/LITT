@@ -9,10 +9,10 @@ class ResidualBlock_noBN(nn.Module):
     ---Conv-ReLU-Conv-+-
      |________________|
     """
-    def __init__(self, n_f=64):
+    def __init__(self, n_f=64, k_s=3):
         super(ResidualBlock_noBN, self).__init__()
-        self.conv_1 = nn.Conv2d(n_f, n_f, 3, padding='same')
-        self.conv_2 = nn.Conv2d(n_f, n_f, 3, padding='same')
+        self.conv_1 = nn.Conv2d(n_f, n_f, k_s, padding='same')
+        self.conv_2 = nn.Conv2d(n_f, n_f, k_s, padding='same')
         self.relu = nn.ReLU(inplace=True)
 
     def forward(self, x):
@@ -85,7 +85,7 @@ class RRN(nn.Module):
 
 
 class RRN_two_stage(nn.Module):
-    def __init__(self, n_ch=2, n_h=64, n_blocks=5):
+    def __init__(self, n_ch=2, n_h=64, k_s=3, n_blocks=5):
         """
         Args:
             n_ch: input channel
@@ -97,16 +97,16 @@ class RRN_two_stage(nn.Module):
         self.n_blocks = n_blocks
 
         # stage 1
-        self.s1_conv = nn.Conv2d(n_ch + n_h + n_ch, n_h, 3, padding='same')
-        self.s1_residual_blocks = make_layer(lambda: ResidualBlock_noBN(n_f=n_h), n_blocks)
-        self.s1_conv_o = nn.Conv2d(n_h, n_ch, 3, padding='same')
+        self.s1_conv = nn.Conv2d(n_ch + n_h + n_ch, n_h, k_s, padding='same')
+        self.s1_residual_blocks = make_layer(lambda: ResidualBlock_noBN(n_f=n_h, k_s=k_s), n_blocks)
+        self.s1_conv_o = nn.Conv2d(n_h, n_ch, k_s, padding='same')
         self.s1_dc = DataConsistencyInKspace(norm='ortho')
 
         # stage 2
-        self.s2_conv = nn.Conv2d(n_ch + n_h + n_ch, n_h, 3, padding='same')
-        self.s2_residual_blocks = make_layer(lambda: ResidualBlock_noBN(n_f=n_h), n_blocks)
-        self.s2_conv_o = nn.Conv2d(n_h, n_ch, 3, padding='same')
-        self.s2_conv_h = nn.Conv2d(n_h, n_h, 3, padding='same')
+        self.s2_conv = nn.Conv2d(n_ch + n_h + n_ch, n_h, k_s, padding='same')
+        self.s2_residual_blocks = make_layer(lambda: ResidualBlock_noBN(n_f=n_h, k_s=k_s), n_blocks)
+        self.s2_conv_o = nn.Conv2d(n_h, n_ch, k_s, padding='same')
+        self.s2_conv_h = nn.Conv2d(n_h, n_h, k_s, padding='same')
         self.s2_dc = DataConsistencyInKspace(norm='ortho')
 
         self.relu = nn.ReLU(inplace=True)
