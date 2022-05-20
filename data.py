@@ -359,6 +359,7 @@ class LITT_v3(torch.utils.data.dataset.Dataset):
                  mask_dir=None,
                  mask_func=None,
                  transform=None,
+                 after_transform=None,
                  overlap=False,
                  nt_wait=0):
         super(LITT_v3, self).__init__()
@@ -378,6 +379,7 @@ class LITT_v3(torch.utils.data.dataset.Dataset):
             self.mask_chunks = None
 
         self.transform = transform
+        self.after_transform = after_transform
 
     def __getitem__(self, idx):
         img_gnd = self.img_chunks[idx]  # [time, x, y]
@@ -392,6 +394,9 @@ class LITT_v3(torch.utils.data.dataset.Dataset):
             img_gnd, mask = self.transform(img_gnd, mask)
 
         img_u, k_u = utils.undersample(img_gnd, mask)
+
+        if self.after_transform is not None:
+            img_gnd, img_u, k_u, mask = self.after_transform(img_gnd, img_u, k_u, mask)
 
         # complex64 -> float32, [time, x, y] -> [time, x, y, 2] -> [2, x, y, time]
         perm = (3, 1, 2, 0)
@@ -415,6 +420,7 @@ class LITT_from_np_array(torch.utils.data.dataset.Dataset):
                  mask,
                  nt_network,
                  transform=None,
+                 after_transform=None,
                  overlap=False,
                  nt_wait=0):
         """
@@ -433,6 +439,7 @@ class LITT_from_np_array(torch.utils.data.dataset.Dataset):
         self.mask_chunks = np.stack(mask_chunks, axis=0)
 
         self.transform = transform
+        self.after_transform = after_transform
 
     def __getitem__(self, idx):
         img_gnd = self.img_chunks[idx]  # -> [t, x, y]
@@ -442,6 +449,9 @@ class LITT_from_np_array(torch.utils.data.dataset.Dataset):
             img_gnd, mask = self.transform(img_gnd, mask)
 
         img_u, k_u = utils.undersample(img_gnd, mask)
+
+        if self.after_transform is not None:
+            img_gnd, img_u, k_u, mask = self.after_transform(img_gnd, img_u, k_u, mask)
 
         # complex64 -> float32, [t, x, y] -> [t, x, y, 2] -> [2, x, y, t]
         perm = (-1, 1, 2, 0)

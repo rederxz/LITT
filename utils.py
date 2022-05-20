@@ -388,3 +388,39 @@ def undersample(x, mask, centred=False, norm='ortho', noise=0):
         x_fu = mask * (x_f + nz)
         x_u = ifft2(x_fu, norm=norm)
         return x_u, x_fu
+
+
+def mag_min_max_normalize(x):
+    """
+    Args:
+        x: [t, x, y]
+
+    Returns:
+        magnitude min_max_normalized x
+    """
+    for i, frame in enumerate(x):
+        angle, mag = np.angle(frame), np.abs(frame)
+        mag = (mag - np.min(mag)) / (np.max(mag) - np.min(mag))
+        x[i] = mag * np.exp(1j * angle)
+
+    return x
+
+
+def mag_min_max_normalize_clip(x, clip_percentage=5):
+    """
+    Args:
+        x: [t, x, y]
+
+    Returns:
+        magnitude min_max_normalized x
+    """
+    for i, frame in enumerate(x):
+        angle, mag = np.angle(frame), np.abs(frame)
+        mag_max = np.percentile(mag, 100 - clip_percentage)
+        mag_min = np.percentile(mag, clip_percentage)
+        mag[mag > mag_max] = mag_max
+        mag[mag < mag_min] = mag_min
+        mag = (mag - mag_min) / (mag_max - mag_min)
+        x[i] = mag * np.exp(1j * angle)
+
+    return x
