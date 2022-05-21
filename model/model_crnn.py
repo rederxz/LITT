@@ -24,6 +24,25 @@ def i2k(x):
 
     return k
 
+
+def k2i(k):
+    if k.dim() == 4:  # input is 2D
+        k = k.permute(0, 2, 3, 1)
+    elif k.dim() == 5:  # input is 3D
+        k = k.permute(0, 4, 2, 3, 1)
+
+    k = torch.view_as_complex(k.contiguous())
+    x = torch.fft.ifft2(k, norm='ortho')
+    x = torch.view_as_real(x)
+
+    if x.dim() == 4:
+        x = x.permute(0, 3, 1, 2)
+    elif x.dim() == 5:
+        x = x.permute(0, 4, 2, 3, 1)
+
+    return x
+
+
 def data_consistency(k, k0, mask, noise_lvl=None):
     """
     k    - input in k-space
