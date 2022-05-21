@@ -204,6 +204,85 @@ class RRN_two_stage(nn.Module):
         return output_o, output_h
 
 
+def low_res_diff(k, k_ref, center=8, centred=False):
+    """
+    Args:
+        k: [batch_size, 2, width, height]
+        k_ref: [batch_size, 2, width, height]
+        center: center lines
+
+    Returns:
+
+    """
+    mask = torch.zeros_like(k)
+    mask[..., k.shape[-2] // 2 - center // 2: k.shape[-2] // 2 + center // 2, :] = 1
+    if not centred:
+        mask = torch.fft.ifftshift(mask, dim=(-1, -2))
+
+    lr_k = torch.view_as_complex((mask * k).permute(0, 2, 3, 1).contiguous())
+    lr_k_ref = torch.view_as_complex((mask * k_ref).permute(0, 2, 3, 1).contiguous())
+
+    lr_img = torch.fft.ifft2(lr_k, norm='ortho')
+    lr_img_ref = torch.fft.ifft2(lr_k_ref, norm='ortho')
+
+    diff = torch.view_as_real(lr_img - lr_img_ref).permute(0, 3, 1, 2)
+
+    return diff
+
+
+class RRN_two_stage_diff_guided(nn.Module):
+    def __init__(self, n_ch=2, n_h=64, k_s=3, n_blocks=5, center_lines=8):
+        """
+        Args:
+            n_ch: input channel
+            n_h: hidden size
+        """
+        super(RRN_two_stage_diff_guided, self).__init__()
+        self.n_ch = n_ch
+        self.n_h = n_h
+        self.n_blocks = n_blocks
+
+        self.low_res_diff = lambda k, k_ref: low_res_diff(k, k_ref, center=center_lines)
+
+        # stage 1
+        self.s1_conv = nn.Conv2d(n_ch + n_h + n_ch, n_h, k_s, padding='same')
+        self.s1_residual_blocks = make_layer(lambda: ResidualBlock_noBN(n_f=n_h, k_s=k_s), n_blocks)
+        self.s1_conv_o = nn.Conv2d(n_h, n_ch, k_s, padding='same')
+        self.s1_dc = DataConsistencyInKspace(norm='ortho')
+
+        # stage 2
+        self.s2_conv = nn.Conv2d(n_ch + n_h + n_ch, n_h, k_s, padding='same')
+        self.s2_residual_blocks = make_layer(lambda: ResidualBlock_noBN(n_f=n_h, k_s=k_s), n_blocks)
+        self.s2_conv_o = nn.Conv2d(n_h, n_ch, k_s, padding='same')
+        self.s2_conv_h = nn.Conv2d(n_h, n_h, k_s, padding='same')
+        self.s2_dc = DataConsistencyInKspace(norm='ortho')
+
+        self.relu = nn.ReLU(inplace=True)
+
+    def forward(self, x, k, m, k_ref, h=None, o=None):
+
+        n_b, n_ch, width, height = x.shape
+        if h is None:
+            h = x.new_zeros([n_b, self.n_h, width, height])
+        if o is None:
+            o = x.new_zeros([n_b, n_ch, width, height])
+
+        diff = self.low_res_diff(k, k_ref)
+
+        stage_1_input = torch.cat([x, diff, h], dim=1)
+        hidden = self.relu(self.s1_conv(stage_1_input))
+        hidden = self.s1_residual_blocks(hidden)
+        stage_1_output = self.s1_dc(self.s1_conv_o(hidden), k, m)
+
+        stage_2_input = torch.cat([stage_1_output, o, h], dim=1)
+        hidden = self.relu(self.s2_conv(stage_2_input))
+        hidden = self.s2_residual_blocks(hidden)
+        output_o = self.s2_dc(self.s2_conv_o(hidden), k, m)
+        output_h = self.relu(self.s2_conv_h(hidden))
+
+        return output_o, output_h
+
+
 class RRN_two_stage_product_block(nn.Module):
     def __init__(self, n_ch=2, n_h=64, k_s=3, n_blocks=5):
         """
