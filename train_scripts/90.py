@@ -137,7 +137,7 @@ def step_test(dataloader, model, criterion, work_dir, writer, epoch, **kwargs):
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--data_path', type=str, default='/root/LITT_data')
-parser.add_argument('--mask_path', type=str, default='/root/LITT_mask_8x_c8')
+parser.add_argument('--mask_path', type=str, default='/root/LITT_mask_kt_8x_c8')
 parser.add_argument('--num_epoch', type=int, default=200)
 parser.add_argument('--batch_size', type=int, default=1 * 4)
 parser.add_argument('--lr', type=float, default=0.0001 * 4)
