@@ -1,5 +1,3 @@
-from collections import deque
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -521,7 +519,7 @@ class RRN_two_stage_tk_res(nn.Module):
 
 
 class RRN_two_stage_tk_finite(nn.Module):
-    def __init__(self, n_ch=2, n_h=64, k_s=3, n_blocks=5, max_len=6):
+    def __init__(self, n_ch=2, n_h=64, k_s=3, n_blocks=5):
         """
         Args:
             n_ch: input channel
@@ -546,19 +544,7 @@ class RRN_two_stage_tk_finite(nn.Module):
 
         self.relu = nn.ReLU(inplace=True)
 
-        self.k_q = deque(maxlen=max_len)
-        self.m_q = deque(maxlen=max_len)
-
-    def forward(self, x, k, m):
-
-        self.k_q.append(k)
-        self.m_q.append(m)
-
-        k_squeeze = torch.zeros_like(k)
-        for k_history, m_history in zip(self.k_q, self.m_q):
-            k_squeeze = k_history * m_history + k_squeeze * (1 - m_history)
-
-        x_init = k2i(k_squeeze)
+    def forward(self, x, k, m, x_init):
 
         stage_1_input = torch.cat([x, x_init], dim=1)
         hidden = self.relu(self.s1_conv(stage_1_input))

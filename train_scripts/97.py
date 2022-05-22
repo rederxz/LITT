@@ -3,6 +3,8 @@ import os
 import sys
 sys.path.append('../')
 
+from collections import deque
+
 import utils
 
 import time
@@ -16,6 +18,7 @@ from skimage.metrics import structural_similarity as cal_ssim, mean_squared_erro
 from data import LITT_v3, data_aug
 from metrics import complex_psnr
 from model.model_zy import RRN_two_stage_tk_finite
+from model.model_crnn import k2i
 from utils import from_tensor_format
 
 
@@ -28,9 +31,17 @@ def step_train(dataloader, model, criterion, optimizer, writer, epoch, **kwargs)
         if torch.cuda.is_available():
             img_u, k_u, mask, img_gnd = img_u.cuda(), k_u.cuda(), mask.cuda(), img_gnd.cuda()
 
+        k_q = deque(maxlen=3)
+        m_q = deque(maxlen=3)
         output_o_c = list()
         for i in range(img_u.shape[-1]):  # iterate over t dimension
-            output_o = model(img_u[..., i], k_u[..., i], mask[..., i])
+            k_q.append(k_u[..., i])
+            m_q.append(mask[..., i])
+            k_squeeze = torch.zeros_like(k_u[..., i])
+            for k_history, m_history in zip(k_q, m_q):
+                k_squeeze = k_history * m_history + k_squeeze * (1 - m_history)
+            x_init = k2i(k_squeeze)
+            output_o = model(img_u[..., i], k_u[..., i], mask[..., i], x_init)
             output_o_c.append(output_o)
         pred = torch.stack(output_o_c, dim=-1)
 
@@ -67,9 +78,17 @@ def step_test(dataloader, model, criterion, work_dir, writer, epoch, **kwargs):
             if torch.cuda.is_available():
                 img_u, k_u, mask, img_gnd = img_u.cuda(), k_u.cuda(), mask.cuda(), img_gnd.cuda()
 
+            k_q = deque(maxlen=3)
+            m_q = deque(maxlen=3)
             output_o_c = list()
             for i in range(img_u.shape[-1]):  # iterate over t dimension
-                output_o = model(img_u[..., i], k_u[..., i], mask[..., i])
+                k_q.append(k_u[..., i])
+                m_q.append(mask[..., i])
+                k_squeeze = torch.zeros_like(k_u[..., i])
+                for k_history, m_history in zip(k_q, m_q):
+                    k_squeeze = k_history * m_history + k_squeeze * (1 - m_history)
+                x_init = k2i(k_squeeze)
+                output_o = model(img_u[..., i], k_u[..., i], mask[..., i], x_init)
                 output_o_c.append(output_o)
             pred = torch.stack(output_o_c, dim=-1)
 
@@ -177,7 +196,7 @@ train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_
 test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=8, shuffle=False, num_workers=2)
 
 # model, loss, optimizer
-rec_net = RRN_two_stage_tk_finite(n_blocks=3, max_len=3)
+rec_net = RRN_two_stage_tk_finite(n_blocks=3)
 criterion = torch.nn.MSELoss()
 optimizer = torch.optim.Adam(rec_net.parameters(), lr=args.lr, betas=(0.5, 0.999))
 scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, args.num_epoch)
