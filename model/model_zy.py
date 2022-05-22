@@ -470,6 +470,54 @@ class RRN_two_stage_tk(nn.Module):
         return output_o, tk
 
 
+class RRN_two_stage_tk_res(nn.Module):
+    def __init__(self, n_ch=2, n_h=64, k_s=3, n_blocks=5):
+        """
+        Args:
+            n_ch: input channel
+            n_h: hidden size
+        """
+        super(RRN_two_stage_tk_res, self).__init__()
+        self.n_ch = n_ch
+        self.n_h = n_h
+        self.n_blocks = n_blocks
+
+        # stage 1
+        self.s1_conv = nn.Conv2d(n_ch + n_ch, n_h, k_s, padding='same')
+        self.s1_residual_blocks = make_layer(lambda: ResidualBlock_noBN(n_f=n_h, k_s=k_s), n_blocks)
+        self.s1_conv_o = nn.Conv2d(n_h, n_ch, k_s, padding='same')
+        self.s1_dc = DataConsistencyInKspace(norm='ortho')
+
+        # stage 2
+        self.s2_conv = nn.Conv2d(n_ch + n_ch, n_h, k_s, padding='same')
+        self.s2_residual_blocks = make_layer(lambda: ResidualBlock_noBN(n_f=n_h, k_s=k_s), n_blocks)
+        self.s2_conv_o = nn.Conv2d(n_h, n_ch, k_s, padding='same')
+        self.s2_dc = DataConsistencyInKspace(norm='ortho')
+
+        self.relu = nn.ReLU(inplace=True)
+
+    def forward(self, x, k, m, o=None, tk=None):
+        if o is None:
+            o = torch.zeros_like(x)
+        if tk is None:
+            tk = torch.zeros_like(k)
+
+        tk = k * m + tk * (1 - m)
+        x_tk = k2i(tk)
+
+        stage_1_input = torch.cat([x, x_tk], dim=1)
+        hidden = self.relu(self.s1_conv(stage_1_input))
+        hidden = self.s1_residual_blocks(hidden)
+        stage_1_output = self.s1_dc(self.s1_conv_o(hidden), k, m)
+
+        stage_2_input = torch.cat([stage_1_output, o], dim=1)
+        hidden = self.relu(self.s2_conv(stage_2_input))
+        hidden = self.s2_residual_blocks(hidden)
+        output_o = self.s2_dc(self.s2_conv_o(hidden) + x_tk, k, m)
+
+        return output_o, tk
+
+
 def low_res_diff(k, k_ref, center=8, centred=False):
     """
     Args:
