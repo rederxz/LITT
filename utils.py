@@ -1,8 +1,10 @@
 import math
+import time
 
 import numpy as np
 from numpy.fft import fftshift, fft, ifftshift, ifft, fft2, ifft2
 from numpy.lib.stride_tricks import as_strided
+from scipy import signal
 from toolz import curry
 
 
@@ -424,3 +426,49 @@ def mag_min_max_normalize_clip(x, clip_percentage=5):
         x[i] = mag * np.exp(1j * angle)
 
     return x
+
+
+def coil_combine(multi_coil_img, filt_cor=False):
+    """
+    Args:
+        multi_coil_img: [nt, nx, ny, ncoil]
+        filt_cor: whether filter correlation matrix
+
+    Returns:
+        combined_img: [nt, nx, ny]
+    """
+
+    nt, nx, ny, ncoil = multi_coil_img.shape
+
+    print(f'Calculating correlation matrix ...')
+    tik = time.time()
+    # correlation matrix [nx, ny, ncoil, ncoil], only calculate on the last frame to save time
+    cor = np.matmul(multi_coil_img[-1, ..., None], np.conj(multi_coil_img)[-1, ..., None, :])
+    if filt_cor:
+        for i in range(ncoil):
+            for j in range(ncoil):
+                cor[..., i, j] = signal.convolve2d(cor[..., i, j], np.ones([3, 3]), mode='same')
+    tok = time.time()
+    print(f'Finish in {tok - tik:.4f}s.')
+
+    # compute filter
+    print(f'SVD ...')
+    tik = time.time()
+    u, s, vh = np.linalg.svd(cor)
+    filt = np.conj(u[..., 0][..., None, :])
+    tok = time.time()
+    print(f'Finish in {tok - tik:.4f}s.')
+
+    # apply filter
+    combined_imgs = list()
+    for i in range(nt):
+        print(f'Combining frame {i + 1}/{nt} ...')
+        tik = time.time()
+        combined_img = np.matmul(filt, multi_coil_img[i, ..., None])[..., 0, 0]
+        tok = time.time()
+        print(f'Finish in {tok - tik:.4f}s.')
+        combined_imgs.append(combined_img)
+
+    combined_imgs = np.stack(combined_imgs, axis=0)
+
+    return combined_imgs
