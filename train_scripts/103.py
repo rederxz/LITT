@@ -36,7 +36,7 @@ def step_train(dataloader, model, criterion, optimizer, writer, epoch, **kwargs)
             output_o, output_h = model(img_u[..., i], k_u[..., i], mask[..., i],
                                        img_u_l, output_h, output_o_mag)
             img_u_l = img_u[..., i]
-            output_o_mag = abs(output_o[:, 0:] + 1j * output_o[:, 1:])
+            output_o_mag = abs(output_o[:, :1] + 1j * output_o[:, 1:])
             output_o_c.append(output_o)
         pred = torch.stack(output_o_c, dim=-1)
 
@@ -81,7 +81,7 @@ def step_test(dataloader, model, criterion, work_dir, writer, epoch, **kwargs):
                 output_o, output_h = model(img_u[..., i], k_u[..., i], mask[..., i],
                                            img_u_l, output_h, output_o_mag)
                 img_u_l = img_u[..., i]
-                output_o_mag = abs(output_o[:, 0:] + 1j * output_o[:, 1:])
+                output_o_mag = abs(output_o[:, :1] + 1j * output_o[:, 1:])
                 output_o_c.append(output_o)
             pred = torch.stack(output_o_c, dim=-1)
 
