@@ -15,7 +15,7 @@ from skimage.metrics import structural_similarity as cal_ssim, mean_squared_erro
 
 from data import LITT_v3, data_aug
 from metrics import complex_psnr
-from model.model_zy import RRN_two_stage
+from model.model_zy import RRN_two_stage_mag
 from utils import from_tensor_format
 
 
@@ -36,7 +36,7 @@ def step_train(dataloader, model, criterion, optimizer, writer, epoch, **kwargs)
             output_o, output_h = model(img_u[..., i], k_u[..., i], mask[..., i],
                                        img_u_l, output_h, output_o_mag)
             img_u_l = img_u[..., i]
-            output_o_mag = abs(output_o[:, 0] + 1j * output_o[:, 1])
+            output_o_mag = abs(output_o[:, 0:] + 1j * output_o[:, 1:])
             output_o_c.append(output_o)
         pred = torch.stack(output_o_c, dim=-1)
 
@@ -81,7 +81,7 @@ def step_test(dataloader, model, criterion, work_dir, writer, epoch, **kwargs):
                 output_o, output_h = model(img_u[..., i], k_u[..., i], mask[..., i],
                                            img_u_l, output_h, output_o_mag)
                 img_u_l = img_u[..., i]
-                output_o_mag = abs(output_o[:, 0] + 1j * output_o[:, 1])
+                output_o_mag = abs(output_o[:, 0:] + 1j * output_o[:, 1:])
                 output_o_c.append(output_o)
             pred = torch.stack(output_o_c, dim=-1)
 
@@ -189,7 +189,7 @@ train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_
 test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=8, shuffle=False, num_workers=2)
 
 # model, loss, optimizer
-rec_net = RRN_two_stage(n_blocks=3)
+rec_net = RRN_two_stage_mag(n_blocks=3)
 criterion = torch.nn.MSELoss()
 optimizer = torch.optim.Adam(rec_net.parameters(), lr=args.lr, betas=(0.5, 0.999))
 scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, args.num_epoch)
