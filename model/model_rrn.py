@@ -32,6 +32,43 @@ class RRN_plain(nn.Module):
         return output_o, hidden
 
 
+class RRN_plain_two_stage(nn.Module):
+    def __init__(self, n_ch=2, n_h=64, k_s=3, n_blocks=5):
+        super(RRN_plain_two_stage, self).__init__()
+        self.n_h = n_h
+
+        self.s1_proj_conv = nn.Conv2d(n_ch + n_h + n_ch + n_ch, n_h, k_s, padding='same')
+        self.s1_residual_blocks = make_layer(lambda: ResidualBlock_noBN(n_f=n_h, k_s=k_s), n_blocks)
+        self.s1_rec_conv = nn.Conv2d(n_h, n_ch, k_s, padding='same')
+        self.s1_dc = DataConsistencyInKspace(norm='ortho')
+
+        self.s2_proj_conv = nn.Conv2d(n_ch + n_h, n_h, k_s, padding='same')
+        self.s2_residual_blocks = make_layer(lambda: ResidualBlock_noBN(n_f=n_h, k_s=k_s), n_blocks)
+        self.s2_rec_conv = nn.Conv2d(n_h, n_ch, k_s, padding='same')
+        self.s2_dc = DataConsistencyInKspace(norm='ortho')
+
+    def forward(self, x, k, m, x_l=None, h=None, o=None):
+        n_b, n_ch, width, height = x.shape
+        if x_l is None:
+            x_l = x.new_zeros([n_b, n_ch, width, height])
+        if h is None:
+            h = x.new_zeros([n_b, self.n_h, width, height])
+        if o is None:
+            o = x.new_zeros([n_b, n_ch, width, height])
+
+        inputs = torch.cat([x, x_l, o, h], dim=1)
+        hidden = self.s1_proj_conv(inputs)
+        hidden = self.s1_residual_blocks(hidden)
+        rec = self.s1_dc(self.s1_rec_conv(hidden), k, m)
+
+        inputs = torch.cat([rec, hidden], dim=1)
+        hidden = self.s2_proj_conv(inputs)
+        hidden = self.s2_residual_blocks(hidden)
+        output_o = self.s2_dc(self.s2_rec_conv(hidden), k, m)
+
+        return output_o, hidden
+
+
 class RRN_two_stage_v4(nn.Module):
     def __init__(self, n_ch=2, n_h=64, k_s=3, n_blocks=5):
         super(RRN_two_stage_v4, self).__init__()
