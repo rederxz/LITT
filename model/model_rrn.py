@@ -1,0 +1,44 @@
+import torch
+import torch.nn as nn
+
+from .model_crnn import DataConsistencyInKspace
+from .model_zy import ResidualBlock_noBN, make_layer
+
+
+class RRN_two_stage_v4(nn.Module):
+    def __init__(self, n_ch=2, n_h=64, k_s=3, n_blocks=5):
+        super(RRN_two_stage_v4, self).__init__()
+        self.n_h = n_h
+
+        # stage 1
+        self.s1_conv = nn.Conv2d(n_ch + n_h + n_ch, n_h, k_s, padding='same')
+        self.s1_residual_blocks = make_layer(lambda: ResidualBlock_noBN(n_f=n_h, k_s=k_s), n_blocks)
+        self.s1_conv_o = nn.Conv2d(n_h, n_ch, k_s, padding='same')
+        self.s1_dc = DataConsistencyInKspace(norm='ortho')
+
+        # stage 2
+        self.s2_conv = nn.Conv2d(n_ch + n_h + n_ch, n_h, k_s, padding='same')
+        self.s2_residual_blocks = make_layer(lambda: ResidualBlock_noBN(n_f=n_h, k_s=k_s), n_blocks)
+        self.s2_conv_o = nn.Conv2d(n_h, n_ch, k_s, padding='same')
+        self.s2_dc = DataConsistencyInKspace(norm='ortho')
+
+    def forward(self, x, k, m, x_l=None, h=None, o=None):
+        n_b, n_ch, width, height = x.shape
+        if x_l is None:
+            x_l = x.new_zeros([n_b, n_ch, width, height])
+        if h is None:
+            h = x.new_zeros([n_b, self.n_h, width, height])
+        if o is None:
+            o = x.new_zeros([n_b, n_ch, width, height])
+
+        stage_1_input = torch.cat([x, x_l, h], dim=1)
+        hidden = self.s1_conv(stage_1_input)
+        hidden = self.s1_residual_blocks(hidden)
+        stage_1_output = self.s1_dc(self.s1_conv_o(hidden), k, m)
+
+        stage_2_input = torch.cat([stage_1_output, o, hidden], dim=1)
+        hidden = self.s2_conv(stage_2_input)
+        hidden = self.s2_residual_blocks(hidden)
+        output_o = self.s2_dc(self.s2_conv_o(hidden), k, m)
+
+        return output_o, hidden
