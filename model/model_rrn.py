@@ -117,7 +117,7 @@ class RRN_plain_three_stage(nn.Module):
 
 
 class RRN_plain_five_stage(nn.Module):
-    def __init__(self, n_ch=2, n_h=64, k_s=3, n_blocks=5):
+    def __init__(self, n_ch=2, n_h=64, k_s=3, n_blocks=5, scale_init=False):
         super(RRN_plain_five_stage, self).__init__()
         self.n_h = n_h
 
@@ -145,6 +145,9 @@ class RRN_plain_five_stage(nn.Module):
         self.s5_residual_blocks = make_layer(lambda: ResidualBlock_noBN(n_f=n_h, k_s=k_s), n_blocks)
         self.s5_rec_conv = nn.Conv2d(n_h, n_ch, k_s, padding='same')
         self.s5_dc = DataConsistencyInKspace(norm='ortho')
+
+        if scale_init:
+            self._initialize_weights()
 
     def forward(self, x, k, m, x_l=None, h=None, o=None):
         n_b, n_ch, width, height = x.shape
@@ -181,6 +184,14 @@ class RRN_plain_five_stage(nn.Module):
         output_o = self.s5_dc(self.s5_rec_conv(hidden), k, m)
 
         return output_o, hidden
+
+    def _initialize_weights(self, scale=0.1):
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                torch.nn.init.kaiming_normal_(m.weight, a=0, mode='fan_in')
+                m.weight.data *= scale
+                if m.bias is not None:
+                    m.bias.data.zero_()
 
 
 class RRN_two_stage_v4(nn.Module):
