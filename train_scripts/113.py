@@ -164,7 +164,7 @@ test_dataset = LITT_v3(img_dir=args.data_path,
                        mask_dir=args.mask_path)
 
 train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=2)
-test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=8, shuffle=False, num_workers=2)
+test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=2, shuffle=False, num_workers=2)
 
 # model, loss, optimizer
 rec_net = CRNN(uni_direction=args.uni_direction)
