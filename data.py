@@ -534,3 +534,59 @@ def get_LITT_dataset_v2(data_root, split, **kwargs):
     dataset = LITT_v2(mat_file_path, **kwargs)
     return dataset
 
+
+class LITT_from_np_array_se(torch.utils.data.dataset.Dataset):
+    def __init__(self,
+                 k,
+                 mask,
+                 nt_network,
+                 overlap=False,
+                 nt_wait=0):
+        """
+        Dataset from numpy array, single z, single coil
+        Args:
+            k: [x, y, t]
+            mask: [x, y, t]
+        """
+        super(LITT_from_np_array_se, self).__init__()
+
+        k = np.moveaxis(k, -1, 0)  # -> [t, x, y]
+        mask = np.moveaxis(mask, -1, 0)
+        k_chunks = cut_to_chunks(k, nt_network, overlap, nt_wait)
+        mask_chunks = cut_to_chunks(mask, nt_network, overlap, nt_wait)
+        self.k_chunks = np.stack(k_chunks, axis=0)  # ->[n, t, x, y]
+        self.mask_chunks = np.stack(mask_chunks, axis=0)
+
+    def __getitem__(self, idx):
+        k_u = self.k_chunks[idx]  # -> [t, x, y]
+        mask = self.mask_chunks[idx]
+
+        # zero-padding k-space and mask to 256x256
+        size_1, size_2 = k_u.shape[-2:]
+        pad_1_1, pad_2_1 = (256 - size_1) // 2, (256 - size_2) // 2
+        pad_1_2, pad_2_2 = 256 - size_1 - pad_1_1, 256 - size_2 - pad_2_1
+        k_u = np.pad(k_u, ((0, 0), (pad_1_1, pad_1_2), (pad_2_1, pad_2_2)))
+        mask = np.pad(mask, ((0, 0), (pad_1_1, pad_1_2), (pad_2_1, pad_2_2)))
+
+        # to image space and normalize
+        img = utils.fftshift(utils.ifft2c(k_u), axes=(1,))
+        img_gnd = utils.mag_min_max_normalize(img)
+
+        mask = utils.fftshift(mask, axes=(-2, -1))
+
+        img_u, k_u = utils.undersample(img_gnd, mask)
+
+        # complex64 -> float32, [t, x, y] -> [t, x, y, 2] -> [2, x, y, t]
+        perm = (-1, 1, 2, 0)
+        img_gnd_tensor = torch.view_as_real(torch.from_numpy(img_gnd)).float().permute(perm)
+        img_u_tensor = torch.view_as_real(torch.from_numpy(img_u)).float().permute(perm)
+        k_u_tensor = torch.view_as_real(torch.from_numpy(k_u)).float().permute(perm)
+        mask_tensor = torch.view_as_real(torch.from_numpy(mask * (1 + 1j))).float().permute(perm)
+
+        return {'img_gnd': img_gnd_tensor,
+                'img_u': img_u_tensor,
+                'k_u': k_u_tensor,
+                'mask': mask_tensor}
+
+    def __len__(self):
+        return len(self.k_chunks)
