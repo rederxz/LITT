@@ -109,22 +109,22 @@ for z in range(z_total):
         # collect results
         result_of_all_coil.append(result)
 
-        # coil combination [[t, x, y], ... coil] -> [t, x, y, coil] -> [t, x, y]
-        im_grd = coil_combine(np.stack([_['im_grd'] for _ in result_of_all_coil], axis=-1))
-        im_und = coil_combine(np.stack([_['im_und'] for _ in result_of_all_coil], axis=-1))
-        im_pred = coil_combine(np.stack([_['im_pred'] for _ in result_of_all_coil], axis=-1))
-        im_grd_holder.append(im_grd)
-        im_und_holder.append(im_und)
-        im_pred_holder.append(im_pred)
+    # coil combination [[t, x, y], ... coil] -> [t, x, y, coil] -> [t, x, y]
+    im_grd = coil_combine(np.stack([_['im_grd'] for _ in result_of_all_coil], axis=-1))
+    im_und = coil_combine(np.stack([_['im_und'] for _ in result_of_all_coil], axis=-1))
+    im_pred = coil_combine(np.stack([_['im_pred'] for _ in result_of_all_coil], axis=-1))
+    im_grd_holder.append(im_grd)
+    im_und_holder.append(im_und)
+    im_pred_holder.append(im_pred)
 
-        # for mask and recon_time, only select one coil as result
-        mask_holder.append(result_of_all_coil[-1]['mask'])  # [[t, x, y], ... coil] -> [t, x, y]
-        recon_time_all_holder.append(result_of_all_coil[-1]['recon_time_all'])  # [[t, ], ... coil] -> [t, ]
+    # for mask and recon_time, only select one coil as result
+    mask_holder.append(result_of_all_coil[-1]['mask'])  # [[t, x, y], ... coil] -> [t, x, y]
+    recon_time_all_holder.append(result_of_all_coil[-1]['recon_time_all'])  # [[t, ], ... coil] -> [t, ]
 
-    sio.savemat(os.path.join(args.work_dir, 'test_result.mat'),
-                {'im_grd': np.stack(im_grd_holder, axis=-1),  # [[t, x, y], ... z] -> [t, x, y, z]
-                 'im_und': np.stack(im_und_holder, axis=-1),
-                 'im_pred': np.stack(im_pred_holder, axis=-1),
-                 'mask': np.stack(mask_holder, axis=-1),
-                 'recon_time_all': recon_time_all_holder[-1],  # [[t, ], ... z] -> [t, ]
-                 'test_nt_wait': 0})
+sio.savemat(os.path.join(args.work_dir, 'test_result.mat'),
+            {'im_grd': np.stack(im_grd_holder, axis=-1),  # [[t, x, y], ... z] -> [t, x, y, z]
+             'im_und': np.stack(im_und_holder, axis=-1),
+             'im_pred': np.stack(im_pred_holder, axis=-1),
+             'mask': np.stack(mask_holder, axis=-1),
+             'recon_time_all': recon_time_all_holder[-1],  # [[t, ], ... z] -> [t, ]
+             'test_nt_wait': 0})
